@@ -1,0 +1,94 @@
+-- Default seed data for the current app setup.
+-- Run this AFTER schema.sql.
+
+insert into public.system_settings (
+  id,
+  ration_rate,
+  night_shift_rate,
+  department_name,
+  unit_name,
+  overnight_shift_attendance_mode,
+  symbol_work,
+  symbol_mission,
+  symbol_study,
+  symbol_leave,
+  symbol_compensation,
+  symbol_maternity,
+  symbol_rest,
+  signer_preparer,
+  signer_commander,
+  signer_leader,
+  signer_preparer_title,
+  signer_commander_title,
+  signer_commander_sub_title,
+  signer_leader_title,
+  signer_leader_acting_title,
+  signer_leader_sub_title,
+  signer_leader_seal_title,
+  max_night_shift_compensation_turns
+) values (
+  'default',
+  75000,
+  200000,
+  'PHÒNG CẢNH SÁT GIAO THÔNG',
+  'CÔNG AN TỈNH LÂM ĐỒNG',
+  'standard',
+  'x',
+  'Ct',
+  'H',
+  'P',
+  'Nb',
+  'Ts',
+  'Nd',
+  'Thiếu tá Đào Hải Dương',
+  'Trung tá Nguyễn Khánh Tiên',
+  'Thượng tá Nguyễn Thành Phương',
+  'NGƯỜI CHẤM CÔNG',
+  'CHỈ HUY ĐỘI',
+  'ĐỘI TRƯỞNG',
+  'LÃNH ĐẠO ĐƠN VỊ',
+  'KT. TRƯỞNG PHÒNG',
+  'PHÓ TRƯỞNG PHÒNG',
+  'TRƯỞNG PHÒNG CSGT',
+  10
+)
+on conflict (id) do update
+set
+  ration_rate = excluded.ration_rate,
+  night_shift_rate = excluded.night_shift_rate,
+  department_name = excluded.department_name,
+  unit_name = excluded.unit_name,
+  overnight_shift_attendance_mode = excluded.overnight_shift_attendance_mode,
+  symbol_work = excluded.symbol_work,
+  symbol_mission = excluded.symbol_mission,
+  symbol_study = excluded.symbol_study,
+  symbol_leave = excluded.symbol_leave,
+  symbol_compensation = excluded.symbol_compensation,
+  symbol_maternity = excluded.symbol_maternity,
+  symbol_rest = excluded.symbol_rest,
+  signer_preparer = excluded.signer_preparer,
+  signer_commander = excluded.signer_commander,
+  signer_leader = excluded.signer_leader,
+  signer_preparer_title = excluded.signer_preparer_title,
+  signer_commander_title = excluded.signer_commander_title,
+  signer_commander_sub_title = excluded.signer_commander_sub_title,
+  signer_leader_title = excluded.signer_leader_title,
+  signer_leader_acting_title = excluded.signer_leader_acting_title,
+  signer_leader_sub_title = excluded.signer_leader_sub_title,
+  signer_leader_seal_title = excluded.signer_leader_seal_title,
+  max_night_shift_compensation_turns = excluded.max_night_shift_compensation_turns;
+
+insert into public.users (id, username, password, role, full_name, officer_id)
+values
+  ('U001', 'admin', '123', 'admin', 'Quản trị viên Hệ thống', null),
+  ('U002', 'lanhdao', '123', 'leader', 'Lãnh đạo Đội Đinh Văn A', null),
+  ('U003', 'chihuy', '123', 'commander', 'Chỉ huy Trực Vương Tuấn B', null),
+  ('U004', 'totruong', '123', 'team_leader', 'Tổ trưởng Đinh Trọng C', null),
+  ('U005', 'canbo', '123', 'officer_self', 'Cán bộ Nguyễn Văn D', 'OFF_001')
+on conflict (id) do update
+set
+  username = excluded.username,
+  password = excluded.password,
+  role = excluded.role,
+  full_name = excluded.full_name,
+  officer_id = excluded.officer_id;
