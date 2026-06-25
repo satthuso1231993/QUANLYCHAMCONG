@@ -34,6 +34,8 @@ export default function SecurityAndSettings({
 }: SecurityAndSettingsProps) {
   const [activeTab, setActiveTab] = useState<'rates' | 'password' | 'logs' | 'backup' | 'accounts'>('rates');
   const [deleteUserConfirm, setDeleteUserConfirm] = useState<{ id: string; name: string; usernameStr: string } | null>(null);
+  const [logSearch, setLogSearch] = useState('');
+  const [logFilter, setLogFilter] = useState<'all' | 'login' | 'edit' | 'other'>('all');
 
   // Rate fields
   const [rationRate, setRationRate] = useState(settings.rationRate);
@@ -207,6 +209,46 @@ export default function SecurityAndSettings({
     setAccountError('');
   };
 
+  React.useEffect(() => {
+    if (currentUser.role === 'admin') return;
+    if (activeTab === 'logs' || activeTab === 'accounts') {
+      setActiveTab('rates');
+    }
+  }, [activeTab, currentUser.role]);
+
+  const getLogCategory = (action: string) => {
+    if (action.includes('Đăng nhập') || action.includes('Đăng xuất')) return 'login';
+    if (
+      action.includes('Sửa') ||
+      action.includes('Cập nhật') ||
+      action.includes('Xóa') ||
+      action.includes('Tạo') ||
+      action.includes('Thêm') ||
+      action.includes('Thành lập') ||
+      action.includes('Giải tán') ||
+      action.includes('Cấu trúc lại') ||
+      action.includes('Chấm công') ||
+      action.includes('Đổi mật khẩu') ||
+      action.includes('Lưu mẫu') ||
+      action.includes('Khôi phục mẫu')
+    ) {
+      return 'edit';
+    }
+    return 'other';
+  };
+
+  const sortedAuditLogs = [...auditLogs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const loginLogCount = sortedAuditLogs.filter((log) => getLogCategory(log.action) === 'login').length;
+  const editLogCount = sortedAuditLogs.filter((log) => getLogCategory(log.action) === 'edit').length;
+  const filteredAuditLogs = sortedAuditLogs.filter((log) => {
+    const category = getLogCategory(log.action);
+    const matchesFilter = logFilter === 'all' || category === logFilter;
+    const keyword = logSearch.trim().toLowerCase();
+    const haystack = `${log.action} ${log.details} ${log.userFullName} ${log.username}`.toLowerCase();
+    const matchesSearch = !keyword || haystack.includes(keyword);
+    return matchesFilter && matchesSearch;
+  });
+
   // Save Settings
   const handleSaveRates = (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,15 +356,17 @@ export default function SecurityAndSettings({
               <span>Đổi mật khẩu tài khoản</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('logs')}
-              className={`w-full text-left px-4 py-3 text-xs font-semibold flex items-center gap-3 transition-colors ${
-                activeTab === 'logs' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-600'
-              }`}
-            >
-              <History className="w-4 h-4 shrink-0" />
-              <span>Nhật ký hệ thống</span>
-            </button>
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={`w-full text-left px-4 py-3 text-xs font-semibold flex items-center gap-3 transition-colors ${
+                  activeTab === 'logs' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                <History className="w-4 h-4 shrink-0" />
+                <span>Nhật ký hệ thống</span>
+              </button>
+            )}
 
             <button
               onClick={() => setActiveTab('backup')}
@@ -742,12 +786,15 @@ export default function SecurityAndSettings({
           )}
 
           {/* TAB 3: SYSTEM AUDIT LOGS */}
-          {activeTab === 'logs' && (
+          {activeTab === 'logs' && currentUser.role === 'admin' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <History className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-bold text-slate-800 text-sm">Nhật ký Hệ thống (Audit Logs)</h3>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm">Nhật ký Hệ thống (Audit Logs)</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Admin có thể tra cứu lịch sử đăng nhập, đăng xuất và các lần chỉnh sửa dữ liệu.</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -760,18 +807,81 @@ export default function SecurityAndSettings({
                 </button>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tổng nhật ký</div>
+                  <div className="mt-2 text-2xl font-black text-slate-800">{sortedAuditLogs.length}</div>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Lịch sử đăng nhập</div>
+                  <div className="mt-2 text-2xl font-black text-emerald-800">{loginLogCount}</div>
+                </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Lịch sử chỉnh sửa</div>
+                  <div className="mt-2 text-2xl font-black text-blue-800">{editLogCount}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tìm kiếm nhật ký</label>
+                  <input
+                    type="text"
+                    value={logSearch}
+                    onChange={(e) => setLogSearch(e.target.value)}
+                    placeholder="Tìm theo hành động, nội dung, họ tên hoặc tài khoản..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Bộ lọc</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'all', label: 'Tất cả' },
+                      { id: 'login', label: 'Đăng nhập' },
+                      { id: 'edit', label: 'Chỉnh sửa' },
+                      { id: 'other', label: 'Khác' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setLogFilter(item.id as typeof logFilter)}
+                        className={`px-3 py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                          logFilter === item.id
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-                {auditLogs.length === 0 ? (
+                {filteredAuditLogs.length === 0 ? (
                   <p className="text-slate-400 text-xs py-12 text-center">Chưa ghi nhận hoạt động nào của hệ thống.</p>
                 ) : (
-                  [...auditLogs]
-                    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-                    .map((log) => {
+                  filteredAuditLogs.map((log) => {
                       const logDateStr = new Date(log.timestamp).toLocaleString('vi-VN');
+                      const category = getLogCategory(log.action);
+                      const badgeClass =
+                        category === 'login'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : category === 'edit'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200';
+                      const badgeLabel =
+                        category === 'login' ? 'Đăng nhập' : category === 'edit' ? 'Chỉnh sửa' : 'Khác';
                       return (
                         <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs flex justify-between gap-4">
                           <div>
-                            <p className="font-bold text-slate-800">{log.action}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-bold text-slate-800">{log.action}</p>
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeClass}`}>
+                                {badgeLabel}
+                              </span>
+                            </div>
                             <p className="text-slate-500 mt-1 font-medium">{log.details}</p>
                             <span className="text-[10px] text-slate-400 mt-2 block">Thực hiện bởi: {log.userFullName} ({log.username})</span>
                           </div>
