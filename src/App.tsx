@@ -152,6 +152,21 @@ export default function App() {
     },
     [],
   );
+  const primaryNavItems = [
+    { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin', 'leader', 'commander', 'team_leader'] },
+    { id: 'teams', label: 'Tổ tuần tra kiểm soát', shortLabel: 'Tổ đội', icon: ShieldAlert, roles: ['admin', 'leader', 'commander', 'team_leader'] },
+    { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+  ] as const;
+  const systemNavItems = [
+    { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'guide', label: 'Đóng gói Setup.exe', shortLabel: 'Hướng dẫn', icon: HelpCircle, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+  ] as const;
+  const visiblePrimaryNavItems = primaryNavItems.filter((menu) => menu.roles.includes(currentUser.role));
+  const visibleSystemNavItems = systemNavItems.filter((menu) => menu.roles.includes(currentUser.role));
+  const mobileNavItems = [...visiblePrimaryNavItems, ...visibleSystemNavItems];
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -537,14 +552,7 @@ export default function App() {
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-3.5 mb-3">DANH MỤC QUẢN LÝ</p>
             
             {/* Nav List */}
-            {[
-              { id: 'dashboard', label: 'Trang chủ Thống kê', icon: LayoutDashboard, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-              { id: 'officers', label: 'Cán bộ chiến sĩ', icon: Users, roles: ['admin', 'leader', 'commander', 'team_leader'] },
-              { id: 'teams', label: 'Tổ tuần tra kiểm soát', icon: ShieldAlert, roles: ['admin', 'leader', 'commander', 'team_leader'] },
-              { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', icon: CalendarRange, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-              { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', icon: ClipboardCheck, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-              { id: 'reports', label: 'Duyệt & Xuất Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-            ].filter(menu => menu.roles.includes(currentUser.role)).map((menu) => {
+            {visiblePrimaryNavItems.map((menu) => {
               const IconComp = menu.icon;
               const isActive = activeTab === menu.id;
 
@@ -567,29 +575,24 @@ export default function App() {
             <div className="pt-3 border-t border-slate-900 my-4"></div>
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-3 mb-2">HỆ THỐNG & ĐÓNG GÓI</p>
             
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`w-full text-left px-3.5 py-3 rounded-xl text-xs font-bold flex items-center gap-3 transition-all duration-200 border cursor-pointer ${
-                activeTab === 'settings' 
-                  ? 'bg-linear-to-r from-red-650/15 to-red-650/5 text-red-400 border-red-500/20' 
-                  : 'hover:bg-slate-900/80 text-slate-400 border-transparent'
-              }`}
-            >
-              <Settings className={`w-4.5 h-4.5 shrink-0 ${activeTab === 'settings' ? 'text-red-400' : 'text-slate-500'}`} />
-              <span>Cấu hình & Bảo mật</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('guide')}
-              className={`w-full text-left px-3.5 py-3 rounded-xl text-xs font-bold flex items-center gap-3 transition-all duration-200 border cursor-pointer ${
-                activeTab === 'guide' 
-                  ? 'bg-linear-to-r from-red-650/15 to-red-650/5 text-red-400 border-red-500/20' 
-                  : 'hover:bg-slate-900/80 text-slate-400 border-transparent'
-              }`}
-            >
-              <HelpCircle className={`w-4.5 h-4.5 shrink-0 ${activeTab === 'guide' ? 'text-red-400' : 'text-slate-500'}`} />
-              <span>Đóng gói Setup.exe</span>
-            </button>
+            {visibleSystemNavItems.map((menu) => {
+              const IconComp = menu.icon;
+              const isActive = activeTab === menu.id;
+              return (
+                <button
+                  key={menu.id}
+                  onClick={() => setActiveTab(menu.id)}
+                  className={`w-full text-left px-3.5 py-3 rounded-xl text-xs font-bold flex items-center gap-3 transition-all duration-200 border cursor-pointer ${
+                    isActive 
+                      ? 'bg-linear-to-r from-red-650/15 to-red-650/5 text-red-400 border-red-500/20' 
+                      : 'hover:bg-slate-900/80 text-slate-400 border-transparent'
+                  }`}
+                >
+                  <IconComp className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-red-400' : 'text-slate-500'}`} />
+                  <span>{menu.label}</span>
+                </button>
+              );
+            })}
           </nav>
 
           {/* Sidebar footer flag */}
@@ -600,7 +603,7 @@ export default function App() {
         </aside>
 
         {/* Content Panel Area */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-6 pb-28 md:p-8 md:pb-8">
           <div className="max-w-7xl mx-auto space-y-6">
             
             {activeTab === 'dashboard' && (
@@ -697,6 +700,30 @@ export default function App() {
         </main>
 
       </div>
+      <nav className="md:hidden sticky bottom-0 inset-x-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+        <div className="flex items-stretch gap-1 overflow-x-auto px-2 py-2">
+          {mobileNavItems.map((menu) => {
+            const IconComp = menu.icon;
+            const isActive = activeTab === menu.id;
+            return (
+              <button
+                key={menu.id}
+                onClick={() => setActiveTab(menu.id)}
+                className={`min-w-[78px] shrink-0 rounded-xl px-2 py-2 text-[10px] font-bold transition-colors ${
+                  isActive
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-slate-50 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <IconComp className={`h-4 w-4 ${isActive ? 'text-red-600' : 'text-slate-500'}`} />
+                  <span className="leading-tight text-center">{menu.shortLabel}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
