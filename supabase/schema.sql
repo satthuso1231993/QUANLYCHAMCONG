@@ -137,7 +137,8 @@ create table if not exists public.system_settings (
 );
 
 create table if not exists public.report_template_overrides (
-  report_id text primary key check (report_id in (
+  user_id text not null references public.users(id) on delete cascade,
+  report_id text not null check (report_id in (
     '1_bang_cham_cong',
     '2_bang_dinh_luong',
     '3_danh_sach_tien_dinh_luong',
@@ -148,8 +149,47 @@ create table if not exists public.report_template_overrides (
   )),
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  primary key (user_id, report_id)
 );
+
+alter table if exists public.report_template_overrides
+add column if not exists user_id text;
+
+update public.report_template_overrides
+set user_id = coalesce(user_id, 'U001')
+where user_id is null;
+
+alter table if exists public.report_template_overrides
+alter column user_id set not null;
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint
+    where conname = 'report_template_overrides_pkey'
+      and conrelid = 'public.report_template_overrides'::regclass
+  ) then
+    alter table public.report_template_overrides drop constraint report_template_overrides_pkey;
+  end if;
+exception
+  when undefined_table then
+    null;
+end;
+$$;
+
+do $$
+begin
+  alter table public.report_template_overrides
+  add primary key (user_id, report_id);
+exception
+  when duplicate_object then
+    null;
+  when undefined_table then
+    null;
+end;
+$$;
 
 create index if not exists idx_attendance_officer_date on public.attendance(officer_id, date);
 create index if not exists idx_ration_records_officer_date on public.ration_records(officer_id, date);

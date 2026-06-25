@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { 
   User, Officer, Team, PatrolSchedule, Attendance, RationRecord, NightShiftRecord, Approval, AuditLog, SystemSettings 
 } from './types';
@@ -20,7 +20,7 @@ import AttendanceManagement from './components/AttendanceManagement';
 import ApprovalAndReports from './components/ApprovalAndReports';
 import SecurityAndSettings from './components/SecurityAndSettings';
 import DatabaseGuide from './components/DatabaseGuide';
-import { hasSupabaseConfig } from './lib/supabaseClient';
+import { hasSupabaseConfig, supabase } from './lib/supabaseClient';
 import {
   loadAppStateFromSupabase,
   syncApprovalsToSupabase,
@@ -35,351 +35,245 @@ import {
   syncUsersToSupabase,
 } from './lib/supabaseData';
 
+type RemoteAppState = Awaited<ReturnType<typeof loadAppStateFromSupabase>>;
+
 export default function App() {
   const appName = 'Chấm Công và Định lượng CSGT';
-
-  const safeStorageGet = (key: string) => {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  };
-  const safeStorageSet = (key: string, value: string) => {
-    try {
-      localStorage.setItem(key, value);
-    } catch {}
-  };
-  const safeStorageRemove = (key: string) => {
-    try {
-      localStorage.removeItem(key);
-    } catch {}
-  };
-  const safeJsonParse = <T,>(raw: string | null, fallback: T): T => {
-    if (!raw) return fallback;
-    try {
-      const parsed = JSON.parse(raw) as T;
-      return parsed ?? fallback;
-    } catch {
-      return fallback;
-    }
+  const defaultCurrentUser: User = {
+    id: '',
+    username: '',
+    fullName: '',
+    role: 'admin',
   };
   // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return safeStorageGet('csgt_auth') === 'true';
-  });
-  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   // Core Database States
-  const [officers, setOfficers] = useState<Officer[]>(() => {
-    return safeJsonParse<Officer[]>(safeStorageGet('csgt_officers'), initialOfficers);
-  });
-
-  const [teams, setTeams] = useState<Team[]>(() => {
-    return safeJsonParse<Team[]>(safeStorageGet('csgt_teams'), initialTeams);
-  });
-
-  const [schedules, setSchedules] = useState<PatrolSchedule[]>(() => {
-    return safeJsonParse<PatrolSchedule[]>(safeStorageGet('csgt_schedules'), initialPatrolSchedules);
-  });
-
-  const [attendance, setAttendance] = useState<Attendance[]>(() => {
-    return safeJsonParse<Attendance[]>(safeStorageGet('csgt_attendance'), initialAttendance);
-  });
-
-  const [rations, setRations] = useState<RationRecord[]>(() => {
-    return safeJsonParse<RationRecord[]>(safeStorageGet('csgt_rations'), initialRations);
-  });
-
-  const [nightShifts, setNightShifts] = useState<NightShiftRecord[]>(() => {
-    return safeJsonParse<NightShiftRecord[]>(safeStorageGet('csgt_night_shifts'), initialNightShifts);
-  });
-
-  const [approvals, setApprovals] = useState<Approval[]>(() => {
-    const saved = safeStorageGet('csgt_approvals');
-    const fallback: Approval[] = [
-      {
-        id: 'APP_PREV_1',
-        monthString: '2026-05',
-        status: 'Đã khóa',
-        approvedBy: 'Quản trị viên Hệ thống',
-        approvedAt: '2026-05-31T23:59:00Z'
-      }
-    ];
-    return saved ? safeJsonParse<Approval[]>(saved, fallback) : fallback;
-  });
-
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    return safeJsonParse<AuditLog[]>(safeStorageGet('csgt_audit_logs'), initialAuditLogs);
-  });
-
-  const [settings, setSettings] = useState<SystemSettings>(() => {
-    return safeJsonParse<SystemSettings>(safeStorageGet('csgt_settings'), initialSettings);
-  });
-
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = safeStorageGet('csgt_users');
-    if (saved) return safeJsonParse<User[]>(saved, []);
-    return [
-      {
-        id: 'U001',
-        username: 'admin',
-        password: '123',
-        fullName: 'Quản trị viên Hệ thống',
-        role: 'admin'
-      },
-      {
-        id: 'U002',
-        username: 'lanhdao',
-        password: '123',
-        fullName: 'Lãnh đạo Đội Đinh Văn A',
-        role: 'leader'
-      },
-      {
-        id: 'U003',
-        username: 'chihuy',
-        password: '123',
-        fullName: 'Chỉ huy Trực Vương Tuấn B',
-        role: 'commander'
-      },
-      {
-        id: 'U004',
-        username: 'totruong',
-        password: '123',
-        fullName: 'Tổ trưởng Đinh Trọng C',
-        role: 'team_leader'
-      },
-      {
-        id: 'U005',
-        username: 'canbo',
-        password: '123',
-        fullName: 'Cán bộ Nguyễn Văn D',
-        role: 'officer_self',
-        officerId: 'OFF_001'
-      }
-    ];
-  });
-
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    const saved = safeStorageGet('csgt_current_user');
-    return saved ? safeJsonParse<User>(saved, {
-      id: 'U001',
-      username: 'admin',
-      fullName: 'Quản trị viên Hệ thống',
-      role: 'admin'
-    }) : {
-      id: 'U001',
-      username: 'admin',
-      fullName: 'Quản trị viên Hệ thống',
-      role: 'admin'
-    };
-  });
+  const [officers, setOfficers] = useState<Officer[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [schedules, setSchedules] = useState<PatrolSchedule[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [rations, setRations] = useState<RationRecord[]>([]);
+  const [nightShifts, setNightShifts] = useState<NightShiftRecord[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>(initialSettings);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User>(defaultCurrentUser);
 
   // Sidebar navigation active state
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isCloudBootstrapping, setIsCloudBootstrapping] = useState<boolean>(hasSupabaseConfig);
   const [cloudSyncError, setCloudSyncError] = useState<string>('');
   const hasHydratedSupabaseRef = useRef(false);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const syncedStateRef = useRef({
+    users: '[]',
+    officers: '[]',
+    teams: '[]',
+    schedules: '[]',
+    attendance: '[]',
+    rations: '[]',
+    nightShifts: '[]',
+    approvals: '[]',
+    auditLogs: '[]',
+    settings: JSON.stringify(initialSettings),
+  });
+  const getSignature = (value: unknown) => JSON.stringify(value);
+  const applyRemoteState = useCallback((remote: RemoteAppState) => {
+    const nextSettings = remote.settings ?? initialSettings;
+    syncedStateRef.current = {
+      users: getSignature(remote.users),
+      officers: getSignature(remote.officers),
+      teams: getSignature(remote.teams),
+      schedules: getSignature(remote.schedules),
+      attendance: getSignature(remote.attendance),
+      rations: getSignature(remote.rations),
+      nightShifts: getSignature(remote.nightShifts),
+      approvals: getSignature(remote.approvals),
+      auditLogs: getSignature(remote.auditLogs),
+      settings: getSignature(nextSettings),
+    };
+    setUsers(remote.users);
+    setOfficers(remote.officers);
+    setTeams(remote.teams);
+    setSchedules(remote.schedules);
+    setAttendance(remote.attendance);
+    setRations(remote.rations);
+    setNightShifts(remote.nightShifts);
+    setApprovals(remote.approvals);
+    setAuditLogs(remote.auditLogs);
+    setSettings(nextSettings);
+  }, []);
+  const refreshFromSupabase = useCallback(async ({ showLoader = false }: { showLoader?: boolean } = {}) => {
+    if (!hasSupabaseConfig) {
+      setCloudSyncError('Ứng dụng chưa được cấu hình Supabase.');
+      return;
+    }
+    if (showLoader) {
+      setIsCloudBootstrapping(true);
+    }
+    try {
+      const remote = await loadAppStateFromSupabase();
+      applyRemoteState(remote);
+      setCloudSyncError('');
+    } catch (error) {
+      console.error('Supabase bootstrap error:', error);
+      setCloudSyncError('Không thể đồng bộ dữ liệu từ Supabase. Vui lòng kiểm tra schema, quyền truy cập và kết nối mạng.');
+    } finally {
+      if (showLoader) {
+        hasHydratedSupabaseRef.current = true;
+        setIsCloudBootstrapping(false);
+      }
+    }
+  }, [applyRemoteState]);
+  const syncStateToSupabase = useCallback(
+    async <T,>(
+      key: keyof typeof syncedStateRef.current,
+      value: T,
+      syncer: (payload: T) => Promise<void>,
+      errorMessage: string,
+    ) => {
+      if (!hasSupabaseConfig || !hasHydratedSupabaseRef.current) return;
+      const signature = getSignature(value);
+      if (signature === syncedStateRef.current[key]) return;
+      try {
+        await syncer(value);
+        syncedStateRef.current[key] = signature;
+        setCloudSyncError('');
+      } catch (error) {
+        console.error(errorMessage, error);
+        setCloudSyncError(errorMessage);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
       setIsCloudBootstrapping(false);
       hasHydratedSupabaseRef.current = false;
+      setCloudSyncError('Ứng dụng yêu cầu Supabase và không còn dùng dữ liệu local.');
       return;
     }
 
-    let cancelled = false;
-
     const hydrateFromSupabase = async () => {
-      setIsCloudBootstrapping(true);
-      try {
-        const remote = await loadAppStateFromSupabase();
-        if (cancelled) return;
-        setUsers((prev) => (remote.users.length ? remote.users : prev));
-        setOfficers((prev) => (remote.officers.length ? remote.officers : prev));
-        setTeams((prev) => (remote.teams.length ? remote.teams : prev));
-        setSchedules((prev) => (remote.schedules.length ? remote.schedules : prev));
-        setAttendance((prev) => (remote.attendance.length ? remote.attendance : prev));
-        setRations((prev) => (remote.rations.length ? remote.rations : prev));
-        setNightShifts((prev) => (remote.nightShifts.length ? remote.nightShifts : prev));
-        setApprovals((prev) => (remote.approvals.length ? remote.approvals : prev));
-        setAuditLogs((prev) => (remote.auditLogs.length ? remote.auditLogs : prev));
-        if (remote.settings) {
-          setSettings(remote.settings);
-        }
-        setCloudSyncError('');
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Supabase bootstrap error:', error);
-        setCloudSyncError('Không đồng bộ được dữ liệu Supabase, app đang dùng dữ liệu cục bộ.');
-      } finally {
-        if (cancelled) return;
-        hasHydratedSupabaseRef.current = true;
-        setIsCloudBootstrapping(false);
-      }
+      await refreshFromSupabase({ showLoader: true });
     };
 
     void hydrateFromSupabase();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [refreshFromSupabase]);
 
   // Persistence triggers
   useEffect(() => {
-    safeStorageSet('csgt_users', JSON.stringify(users));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncUsersToSupabase(users).catch((error) => {
-        console.error('Supabase users sync error:', error);
-        setCloudSyncError('Không đồng bộ được tài khoản người dùng lên Supabase.');
-      });
-    }
-  }, [users]);
+    void syncStateToSupabase('users', users, syncUsersToSupabase, 'Không đồng bộ được tài khoản người dùng lên Supabase.');
+  }, [users, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_officers', JSON.stringify(officers));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncOfficersToSupabase(officers).catch((error) => {
-        console.error('Supabase officers sync error:', error);
-        setCloudSyncError('Không đồng bộ được danh sách cán bộ lên Supabase.');
-      });
-    }
-  }, [officers]);
+    void syncStateToSupabase('officers', officers, syncOfficersToSupabase, 'Không đồng bộ được danh sách cán bộ lên Supabase.');
+  }, [officers, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_teams', JSON.stringify(teams));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncTeamsToSupabase(teams).catch((error) => {
-        console.error('Supabase teams sync error:', error);
-        setCloudSyncError('Không đồng bộ được tổ đội lên Supabase.');
-      });
-    }
-  }, [teams]);
+    void syncStateToSupabase('teams', teams, syncTeamsToSupabase, 'Không đồng bộ được tổ đội lên Supabase.');
+  }, [teams, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_schedules', JSON.stringify(schedules));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncSchedulesToSupabase(schedules).catch((error) => {
-        console.error('Supabase schedules sync error:', error);
-        setCloudSyncError('Không đồng bộ được lịch tuần tra lên Supabase.');
-      });
-    }
-  }, [schedules]);
+    void syncStateToSupabase('schedules', schedules, syncSchedulesToSupabase, 'Không đồng bộ được lịch tuần tra lên Supabase.');
+  }, [schedules, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_attendance', JSON.stringify(attendance));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncAttendanceToSupabase(attendance).catch((error) => {
-        console.error('Supabase attendance sync error:', error);
-        setCloudSyncError('Không đồng bộ được dữ liệu chấm công lên Supabase.');
-      });
-    }
-  }, [attendance]);
+    void syncStateToSupabase('attendance', attendance, syncAttendanceToSupabase, 'Không đồng bộ được dữ liệu chấm công lên Supabase.');
+  }, [attendance, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_rations', JSON.stringify(rations));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncRationsToSupabase(rations).catch((error) => {
-        console.error('Supabase rations sync error:', error);
-        setCloudSyncError('Không đồng bộ được dữ liệu định lượng lên Supabase.');
-      });
-    }
-  }, [rations]);
+    void syncStateToSupabase('rations', rations, syncRationsToSupabase, 'Không đồng bộ được dữ liệu định lượng lên Supabase.');
+  }, [rations, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_night_shifts', JSON.stringify(nightShifts));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncNightShiftsToSupabase(nightShifts).catch((error) => {
-        console.error('Supabase night shifts sync error:', error);
-        setCloudSyncError('Không đồng bộ được dữ liệu làm đêm lên Supabase.');
-      });
-    }
-  }, [nightShifts]);
+    void syncStateToSupabase('nightShifts', nightShifts, syncNightShiftsToSupabase, 'Không đồng bộ được dữ liệu làm đêm lên Supabase.');
+  }, [nightShifts, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_approvals', JSON.stringify(approvals));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncApprovalsToSupabase(approvals).catch((error) => {
-        console.error('Supabase approvals sync error:', error);
-        setCloudSyncError('Không đồng bộ được trạng thái phê duyệt lên Supabase.');
-      });
-    }
-  }, [approvals]);
+    void syncStateToSupabase('approvals', approvals, syncApprovalsToSupabase, 'Không đồng bộ được trạng thái phê duyệt lên Supabase.');
+  }, [approvals, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_audit_logs', JSON.stringify(auditLogs));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncAuditLogsToSupabase(auditLogs).catch((error) => {
-        console.error('Supabase audit logs sync error:', error);
-        setCloudSyncError('Không đồng bộ được nhật ký hệ thống lên Supabase.');
-      });
-    }
-  }, [auditLogs]);
+    void syncStateToSupabase('auditLogs', auditLogs, syncAuditLogsToSupabase, 'Không đồng bộ được nhật ký hệ thống lên Supabase.');
+  }, [auditLogs, syncStateToSupabase]);
 
   useEffect(() => {
-    safeStorageSet('csgt_settings', JSON.stringify(settings));
-    if (hasSupabaseConfig && hasHydratedSupabaseRef.current) {
-      void syncSettingsToSupabase(settings).catch((error) => {
-        console.error('Supabase settings sync error:', error);
-        setCloudSyncError('Không đồng bộ được cấu hình hệ thống lên Supabase.');
-      });
-    }
-  }, [settings]);
+    void syncStateToSupabase('settings', settings, syncSettingsToSupabase, 'Không đồng bộ được cấu hình hệ thống lên Supabase.');
+  }, [settings, syncStateToSupabase]);
 
-  // One-time sync on load to fix any cross-midnight bugs in existing local state
   useEffect(() => {
-    if (hasSupabaseConfig) return;
-    try {
-      const savedSchedules = safeStorageGet('csgt_schedules');
-      const savedTeams = safeStorageGet('csgt_teams');
-      const savedOfficers = safeStorageGet('csgt_officers');
-      const savedSettings = safeStorageGet('csgt_settings');
-      
-      const parsedSchedules = safeJsonParse<PatrolSchedule[]>(savedSchedules, initialPatrolSchedules);
-      const parsedTeams = safeJsonParse<Team[]>(savedTeams, initialTeams);
-      const parsedOfficers = safeJsonParse<Officer[]>(savedOfficers, initialOfficers);
-      const parsedSettings = safeJsonParse<SystemSettings>(savedSettings, initialSettings);
-      
-      const savedAttendance = safeStorageGet('csgt_attendance');
-      const parsedAttendance = safeJsonParse<Attendance[]>(savedAttendance, initialAttendance);
-      
-      if (parsedSchedules.length > 0) {
-        const cleanManualAttendance = parsedAttendance.filter((a: any) => !a.sourceScheduleId && !a.id.startsWith('ATT_AUTO'));
-        const newAuto = generateRecordsFromSchedules(parsedSchedules, parsedTeams, parsedOfficers, parsedSettings);
-        
-        const finalAttendance = [...cleanManualAttendance, ...newAuto.attendance];
-        setAttendance(finalAttendance);
-        setRations(newAuto.rations);
-        setNightShifts(newAuto.nightShifts);
-        
-        // Immediately persist the correct calculations
-        safeStorageSet('csgt_attendance', JSON.stringify(finalAttendance));
-        safeStorageSet('csgt_rations', JSON.stringify(newAuto.rations));
-        safeStorageSet('csgt_night_shifts', JSON.stringify(newAuto.nightShifts));
+    if (!hasSupabaseConfig || !supabase || isCloudBootstrapping) return;
+
+    const requestRefresh = () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
       }
-    } catch (e) {
-      console.error("Data migration error:", e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        void refreshFromSupabase();
+      }, 250);
+    };
+
+    const channel = supabase.channel('csgt-app-realtime');
+    [
+      'users',
+      'officers',
+      'teams',
+      'patrol_schedules',
+      'attendance',
+      'ration_records',
+      'night_shift_records',
+      'approvals',
+      'audit_logs',
+      'system_settings',
+    ].forEach((table) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, requestRefresh);
+    });
+    channel.subscribe();
+
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [isCloudBootstrapping, refreshFromSupabase]);
 
   // System audit logger logic
-  const addLog = (action: string, details: string) => {
+  const addLog = (action: string, details: string, actor: User = currentUser) => {
     const newLog: AuditLog = {
       id: `LOG_${Date.now()}`,
-      userId: currentUser.id,
-      username: currentUser.username,
-      userFullName: currentUser.fullName,
+      userId: actor.id,
+      username: actor.username,
+      userFullName: actor.fullName,
       timestamp: new Date().toISOString(),
       action,
       details
     };
     setAuditLogs(prev => [newLog, ...prev]);
   };
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser.id) return;
+    const latestUser = users.find((user) => user.id === currentUser.id);
+    if (!latestUser) {
+      setIsAuthenticated(false);
+      setCurrentUser(defaultCurrentUser);
+      setLoginError('Tài khoản đang đăng nhập không còn tồn tại trên Supabase.');
+      return;
+    }
+    if (getSignature(latestUser) !== getSignature(currentUser)) {
+      setCurrentUser(latestUser);
+    }
+  }, [currentUser, isAuthenticated, users]);
 
   // Sync automatic attendance, rations, and night shift records based on patrol schedules
   const syncAutoCalculations = (latestSchedules: PatrolSchedule[]) => {
@@ -409,10 +303,8 @@ export default function App() {
     if (matchedUser) {
       setIsAuthenticated(true);
       setCurrentUser(matchedUser);
-      safeStorageSet('csgt_auth', 'true');
-      safeStorageSet('csgt_current_user', JSON.stringify(matchedUser));
       setLoginError('');
-      addLog('Đăng nhập hệ thống', `Đã đăng nhập thành công vào hệ thống với tài khoản '${matchedUser.username}' (${matchedUser.fullName}).`);
+      addLog('Đăng nhập hệ thống', `Đã đăng nhập thành công vào hệ thống với tài khoản '${matchedUser.username}' (${matchedUser.fullName}).`, matchedUser);
     } else {
       setLoginError('Tài khoản hoặc mật khẩu không chính xác! (Mật khẩu mặc định là 123, tài khoản admin là 123456 hoặc mật khẩu cụ thể của bạn)');
     }
@@ -422,8 +314,7 @@ export default function App() {
   const handleLogout = () => {
     addLog('Đăng xuất hệ thống', `Cán bộ '${currentUser?.fullName || 'ẩn danh'}' đã hủy phiên làm việc và đăng xuất.`);
     setIsAuthenticated(false);
-    safeStorageRemove('csgt_auth');
-    safeStorageRemove('csgt_current_user');
+    setCurrentUser(defaultCurrentUser);
     setLoginUsername('');
     setLoginPassword('');
   };
@@ -497,6 +388,22 @@ export default function App() {
           </div>
           <div className="text-white text-lg font-black uppercase tracking-wide">Đang kết nối Supabase</div>
           <div className="text-slate-400 text-sm font-semibold">Vui lòng chờ trong giây lát...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasSupabaseConfig) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
+        <div className="max-w-lg text-center space-y-3">
+          <div className="w-14 h-14 bg-red-600/90 border border-yellow-500 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8" />
+          </div>
+          <div className="text-white text-lg font-black uppercase tracking-wide">Thiếu cấu hình Supabase</div>
+          <div className="text-slate-400 text-sm font-semibold">
+            Ứng dụng này đang chạy ở chế độ cloud-only. Hãy khai báo `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY`, sau đó build/chạy lại app.
+          </div>
         </div>
       </div>
     );
@@ -606,7 +513,7 @@ export default function App() {
           <div className="text-right hidden sm:block">
             <span className="block text-slate-100">{currentUser.fullName}</span>
             <span className={`text-[9px] font-extrabold uppercase tracking-wider ${cloudSyncError ? 'text-amber-300' : 'text-emerald-400'}`}>
-              {cloudSyncError ? 'Đang dùng dữ liệu cục bộ' : 'Supabase • Đã kết nối'}
+              {cloudSyncError ? 'Supabase • Có lỗi đồng bộ' : 'Supabase • Đã kết nối'}
             </span>
           </div>
           
@@ -688,7 +595,7 @@ export default function App() {
           {/* Sidebar footer flag */}
           <div className="p-4 bg-slate-950/80 border-t border-slate-900 text-[10px] text-slate-500 text-center font-bold">
             <p className="text-slate-400">P.M.H, SĐT: 0972876779</p>
-            <p className="mt-0.5 font-medium text-slate-600">Bản quyền 2026 • Chạy Offline</p>
+            <p className="mt-0.5 font-medium text-slate-600">Bản quyền 2026 • Đồng bộ Supabase</p>
           </div>
         </aside>
 

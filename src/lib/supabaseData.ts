@@ -5,6 +5,9 @@ import {
   NightShiftRecord,
   Officer,
   PatrolSchedule,
+  ReportTemplateId,
+  ReportTemplateOverride,
+  ReportTemplateOverrides,
   RationRecord,
   SystemSettings,
   Team,
@@ -332,5 +335,58 @@ export const syncSettingsToSupabase = async (row: SystemSettings) => {
   const client = ensureClient();
   const payload = fromSettings(row);
   const { error } = await client.from('system_settings').upsert(payload, { onConflict: 'id' });
+  if (error) throw error;
+};
+
+const toTemplateOverride = (payload: unknown): ReportTemplateOverride => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return {};
+  }
+  return payload as ReportTemplateOverride;
+};
+
+export const loadTemplateOverridesFromSupabase = async (userId: string): Promise<ReportTemplateOverrides> => {
+  const client = ensureClient();
+  const { data, error } = await client
+    .from('report_template_overrides')
+    .select('report_id, payload')
+    .eq('user_id', userId)
+    .order('report_id');
+
+  if (error) throw error;
+
+  const overrides: ReportTemplateOverrides = {};
+  for (const row of data || []) {
+    const reportId = String(row.report_id || '') as ReportTemplateId;
+    if (!reportId) continue;
+    overrides[reportId] = toTemplateOverride(row.payload);
+  }
+  return overrides;
+};
+
+export const saveTemplateOverrideToSupabase = async (
+  userId: string,
+  reportId: ReportTemplateId,
+  payload: ReportTemplateOverride,
+) => {
+  const client = ensureClient();
+  const { error } = await client.from('report_template_overrides').upsert(
+    {
+      user_id: userId,
+      report_id: reportId,
+      payload,
+    },
+    { onConflict: 'user_id,report_id' },
+  );
+  if (error) throw error;
+};
+
+export const deleteTemplateOverrideFromSupabase = async (userId: string, reportId: ReportTemplateId) => {
+  const client = ensureClient();
+  const { error } = await client
+    .from('report_template_overrides')
+    .delete()
+    .eq('user_id', userId)
+    .eq('report_id', reportId);
   if (error) throw error;
 };

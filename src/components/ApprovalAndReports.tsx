@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Officer, Attendance, RationRecord, NightShiftRecord, Approval, SystemSettings, PatrolSchedule, Team, ReportTemplateId, ReportTemplateOverride, ReportTemplateOverrides } from '../types';
 import { formatCurrency, formatDateDmy, numberToVietnameseWords } from '../utils/helpers';
 import { FileText, Lock, Unlock, Printer, Shield, Check, Calendar, HelpCircle, RefreshCw } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
+import {
+  deleteTemplateOverrideFromSupabase,
+  loadTemplateOverridesFromSupabase,
+  saveTemplateOverrideToSupabase,
+} from '../lib/supabaseData';
 
 interface ApprovalAndReportsProps {
   officers: Officer[];
@@ -12,7 +18,7 @@ interface ApprovalAndReportsProps {
   setApprovals: React.Dispatch<React.SetStateAction<Approval[]>>;
   settings: SystemSettings;
   addLog: (action: string, details: string) => void;
-  currentUser: { fullName: string; username: string };
+  currentUser: { id: string; fullName: string; username: string };
   schedules?: PatrolSchedule[];
   teams?: Team[];
 }
@@ -77,7 +83,6 @@ export default function ApprovalAndReports({
     );
   };
 
-  const templateStorageKey = 'csgt_report_template_overrides_v1';
   const defaultTemplate: ReportTemplateOverride = {
     placeName: 'Đắk Lắk',
     teamName: 'Đội CSGT-ĐB Số 4',
@@ -122,16 +127,10 @@ export default function ApprovalAndReports({
     legendFontPt: 14,
   };
 
-  const [templateOverrides, setTemplateOverrides] = useState<ReportTemplateOverrides>(() => {
-    try {
-      const raw = localStorage.getItem(templateStorageKey);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw) as ReportTemplateOverrides;
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  });
+  const [templateOverrides, setTemplateOverrides] = useState<ReportTemplateOverrides>({});
+  const [isTemplateLoading, setIsTemplateLoading] = useState<boolean>(true);
+  const [isSavingTemplate, setIsSavingTemplate] = useState<boolean>(false);
+  const [templateCloudError, setTemplateCloudError] = useState<string | null>(null);
 
   const isOfficerScheduled = (officerId: string, dateStr: string): boolean => {
     if (!schedules) return false;
@@ -292,12 +291,25 @@ export default function ApprovalAndReports({
     return <span className={className}>{multiline ? renderMultiline(rendered) : rendered}</span>;
   };
 
-  const persistTemplateOverrides = (next: ReportTemplateOverrides) => {
-    setTemplateOverrides(next);
+  const refreshTemplateOverrides = React.useCallback(async () => {
+    if (!currentUser.id) {
+      setTemplateOverrides({});
+      setTemplateCloudError('Không xác định được tài khoản để tải mẫu biểu cá nhân.');
+      setIsTemplateLoading(false);
+      return;
+    }
+    setIsTemplateLoading(true);
     try {
-      localStorage.setItem(templateStorageKey, JSON.stringify(next));
-    } catch {}
-  };
+      const next = await loadTemplateOverridesFromSupabase(currentUser.id);
+      setTemplateOverrides(next);
+      setTemplateCloudError(null);
+    } catch (error) {
+      console.error('Supabase template overrides load error:', error);
+      setTemplateCloudError('Không tải được mẫu biểu cá nhân từ Supabase.');
+    } finally {
+      setIsTemplateLoading(false);
+    }
+  }, [currentUser.id]);
 
   const handleStartEditTemplate = () => {
     setDraftTemplate(currentTemplate);
@@ -313,32 +325,88 @@ export default function ApprovalAndReports({
     setSelectedCellKey('');
   };
 
-  const handleSaveTemplate = () => {
-    const next: ReportTemplateOverrides = { ...templateOverrides, [activeReport]: draftTemplate };
-    persistTemplateOverrides(next);
-    setIsEditingTemplate(false);
-    setEditTab('content');
-    setSelectedCellKey('');
-    addLog('Lưu mẫu báo cáo', `Đã lưu mẫu tùy chỉnh cho biểu ${activeReport}.`);
+  const handleSaveTemplate = async () => {
+    if (!currentUser.id) {
+      setTemplateCloudError('Không xác định được tài khoản để lưu mẫu biểu.');
+      return;
+    }
+    setIsSavingTemplate(true);
+    try {
+      await saveTemplateOverrideToSupabase(currentUser.id, activeReport, draftTemplate);
+      setTemplateOverrides((prev) => ({ ...prev, [activeReport]: draftTemplate }));
+      setTemplateCloudError(null);
+      setIsEditingTemplate(false);
+      setEditTab('content');
+      setSelectedCellKey('');
+      addLog('Lưu mẫu báo cáo', `Đã lưu mẫu tùy chỉnh cho biểu ${activeReport} của tài khoản ${currentUser.username}.`);
+    } catch (error) {
+      console.error('Supabase template override save error:', error);
+      setTemplateCloudError('Không lưu được mẫu biểu cá nhân lên Supabase.');
+    } finally {
+      setIsSavingTemplate(false);
+    }
   };
 
-  const handleResetTemplate = () => {
-    const next: ReportTemplateOverrides = { ...templateOverrides };
-    delete next[activeReport];
-    persistTemplateOverrides(next);
-    setDraftTemplate({ ...defaultTemplate });
-    setIsEditingTemplate(false);
-    setEditTab('content');
-    setSelectedCellKey('');
-    addLog('Khôi phục mẫu mặc định', `Đã khôi phục mẫu mặc định cho biểu ${activeReport}.`);
+  const handleResetTemplate = async () => {
+    if (!currentUser.id) {
+      setTemplateCloudError('Không xác định được tài khoản để đặt lại mẫu biểu.');
+      return;
+    }
+    setIsSavingTemplate(true);
+    try {
+      await deleteTemplateOverrideFromSupabase(currentUser.id, activeReport);
+      setTemplateOverrides((prev) => {
+        const next = { ...prev };
+        delete next[activeReport];
+        return next;
+      });
+      setDraftTemplate({ ...defaultTemplate });
+      setTemplateCloudError(null);
+      setIsEditingTemplate(false);
+      setEditTab('content');
+      setSelectedCellKey('');
+      addLog('Khôi phục mẫu mặc định', `Đã khôi phục mẫu mặc định cho biểu ${activeReport} của tài khoản ${currentUser.username}.`);
+    } catch (error) {
+      console.error('Supabase template override reset error:', error);
+      setTemplateCloudError('Không đặt lại được mẫu biểu cá nhân trên Supabase.');
+    } finally {
+      setIsSavingTemplate(false);
+    }
   };
 
   React.useEffect(() => {
-    setDraftTemplate(currentTemplate);
-    setIsEditingTemplate(false);
+    void refreshTemplateOverrides();
+  }, [refreshTemplateOverrides]);
+
+  React.useEffect(() => {
+    if (!supabase || !currentUser.id) return;
+    const channel = supabase
+      .channel(`template-overrides-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'report_template_overrides',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        () => {
+          void refreshTemplateOverrides();
+        },
+      );
+    channel.subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser.id, refreshTemplateOverrides]);
+
+  React.useEffect(() => {
+    if (!isEditingTemplate) {
+      setDraftTemplate(currentTemplate);
+    }
     setExportError(null);
     setIsExporting(false);
-  }, [activeReport]);
+  }, [activeReport, isEditingTemplate, templateOverrides]);
 
   React.useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -2383,23 +2451,26 @@ export default function ApprovalAndReports({
             {!isEditingTemplate ? (
               <button
                 onClick={handleStartEditTemplate}
+                disabled={isTemplateLoading}
                 className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
               >
                 <FileText className="w-4 h-4" />
-                <span>Chỉnh sửa mẫu</span>
+                <span>{isTemplateLoading ? 'Đang tải mẫu...' : 'Chỉnh sửa mẫu'}</span>
                 {hasCustomTemplate && <span className="ml-1 text-[10px] font-black text-emerald-700">(đã lưu)</span>}
               </button>
             ) : (
               <>
                 <button
                   onClick={handleSaveTemplate}
-                  className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 rounded-lg transition-colors"
+                  disabled={isSavingTemplate}
+                  className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 rounded-lg transition-colors disabled:opacity-60"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Lưu</span>
+                  <span>{isSavingTemplate ? 'Đang lưu...' : 'Lưu'}</span>
                 </button>
                 <button
                   onClick={() => setEditTab('table')}
+                  disabled={isSavingTemplate}
                   className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
                 >
                   <FileText className="w-4 h-4" />
@@ -2407,6 +2478,7 @@ export default function ApprovalAndReports({
                 </button>
                 <button
                   onClick={handleCancelEditTemplate}
+                  disabled={isSavingTemplate}
                   className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
                 >
                   <Unlock className="w-4 h-4" />
@@ -2414,7 +2486,8 @@ export default function ApprovalAndReports({
                 </button>
                 <button
                   onClick={handleResetTemplate}
-                  className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors"
+                  disabled={isSavingTemplate}
+                  className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors disabled:opacity-60"
                 >
                   <RefreshCw className="w-4 h-4" />
                   <span>Mặc định</span>
@@ -2422,6 +2495,11 @@ export default function ApprovalAndReports({
               </>
             )}
           </div>
+          {templateCloudError ? (
+            <div className="mb-4 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 print:hidden">
+              {templateCloudError}
+            </div>
+          ) : null}
           
           {!isEditingTemplate ? (
             <div className="w-full">
