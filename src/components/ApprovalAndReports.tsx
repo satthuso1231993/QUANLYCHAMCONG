@@ -3,6 +3,7 @@ import { Officer, Attendance, RationRecord, NightShiftRecord, Approval, SystemSe
 import { formatCurrency, formatDateDmy, numberToVietnameseWords } from '../utils/helpers';
 import { FileText, Lock, Unlock, Printer, Shield, Check, Calendar, HelpCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { hasOnlyOfficeConfig } from '../lib/onlyOffice';
 import {
   deleteTemplateOverrideFromSupabase,
   loadTemplateOverridesFromSupabase,
@@ -24,6 +25,7 @@ interface ApprovalAndReportsProps {
 }
 
 type ReportType = ReportTemplateId;
+const OnlyOfficeEditorModal = React.lazy(() => import('./OnlyOfficeEditorModal'));
 
 export default function ApprovalAndReports({
   officers,
@@ -38,6 +40,37 @@ export default function ApprovalAndReports({
   schedules = [],
   teams = [],
 }: ApprovalAndReportsProps) {
+  const officerPositionOrder: Record<Officer['position'], number> = {
+    'Đội trưởng': 5,
+    'Phó Đội trưởng': 4,
+    'Trực ban': 3,
+    'Cán bộ': 2,
+    'Chiến sĩ': 1,
+  };
+  const officerRankOrder: Record<Officer['rank'], number> = {
+    'Đại tá': 13,
+    'Thượng tá': 12,
+    'Trung tá': 11,
+    'Thiếu tá': 10,
+    'Đại úy': 9,
+    'Thượng úy': 8,
+    'Trung úy': 7,
+    'Thiếu úy': 6,
+    'Thượng sĩ': 5,
+    'Trung sĩ': 4,
+    'Hạ sĩ': 3,
+    'Binh nhất': 2,
+    'Binh nhì': 1,
+  };
+  const reportDefinitions: { type: ReportType; label: string }[] = [
+    { type: '1_bang_cham_cong', label: '1. Bảng chấm công tháng' },
+    { type: '2_bang_dinh_luong', label: '2. Bảng định lượng tuần tra (Mẫu 02)' },
+    { type: '3_danh_sach_tien_dinh_luong', label: '3. DS nhận tiền định lượng' },
+    { type: '4_de_xuat_dinh_luong', label: '4. Đề xuất thanh toán ĐL' },
+    { type: '5_bang_lam_dem', label: '5. Bảng chấm công làm đêm (Mẫu 05)' },
+    { type: '6_danh_sach_tien_lam_dem', label: '6. DS nhận tiền làm đêm' },
+    { type: '7_de_xuat_lam_dem', label: '7. Đề xuất thanh toán trực đêm' },
+  ];
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-06'); // default June 2026
 
   const unitName = settings.unitName || 'CÔNG AN TỈNH';
@@ -151,7 +184,7 @@ export default function ApprovalAndReports({
   const [exportFormat, setExportFormat] = useState<'word' | 'pdf'>('word');
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [editTab, setEditTab] = useState<'content' | 'table'>('content');
+  const [editTab, setEditTab] = useState<'content' | 'table' | 'wordEmbed'>('content');
   const [selectedCellKey, setSelectedCellKey] = useState<string>('');
   const exportEditorIframeRef = React.useRef<HTMLIFrameElement | null>(null);
   const previewViewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -165,6 +198,18 @@ export default function ApprovalAndReports({
   const [draftTemplate, setDraftTemplate] = useState<ReportTemplateOverride>(currentTemplate);
   const hasCustomTemplate = Boolean(templateOverrides[activeReport]);
   const template = isEditingTemplate ? draftTemplate : currentTemplate;
+  const activeReportLabel = reportDefinitions.find((item) => item.type === activeReport)?.label || activeReport;
+  const orderedOfficers = React.useMemo(() => {
+    return [...officers].sort((left, right) => {
+      const positionDiff = (officerPositionOrder[right.position] || 0) - (officerPositionOrder[left.position] || 0);
+      if (positionDiff !== 0) return positionDiff;
+
+      const rankDiff = (officerRankOrder[right.rank] || 0) - (officerRankOrder[left.rank] || 0);
+      if (rankDiff !== 0) return rankDiff;
+
+      return left.fullName.localeCompare(right.fullName, 'vi');
+    });
+  }, [officers]);
 
   const EditableText = ({
     value,
@@ -1100,7 +1145,7 @@ export default function ApprovalAndReports({
           </tr>
         </thead>
         <tbody>
-          ${officers.map((off, index) => {
+          ${orderedOfficers.map((off, index) => {
             const offAtts = activeAttendance.filter(a => a.officerId === off.id);
             let workDays = 0;
             let blankDays = 0;
@@ -1269,7 +1314,7 @@ export default function ApprovalAndReports({
           </tr>
         </thead>
         <tbody>
-          ${officers.map((off, index) => {
+          ${orderedOfficers.map((off, index) => {
             const offRations = activeRations.filter(r => r.officerId === off.id);
             const totalDays = offRations.length;
 
@@ -1294,7 +1339,7 @@ export default function ApprovalAndReports({
               return `<td style="border: 0.5pt solid #52525b; ${cellBg}"></td>`;
             }).join('')}
             <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; color: #991b1b;">
-              ${officers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0)}
+              ${orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0)}
             </td>
           </tr>
         </tbody>
@@ -1331,7 +1376,7 @@ export default function ApprovalAndReports({
     } else if (activeReport === '3_danh_sach_tien_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
       const titleYear = parseInt(yearStr, 10);
-      const totalDays = officers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
+      const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
       const totalAmount = activeRations.reduce((acc, curr) => acc + curr.amount, 0);
 
       htmlContent += `
@@ -1377,7 +1422,7 @@ export default function ApprovalAndReports({
           </tr>
         </thead>
         <tbody>
-          ${officers.map((off, index) => {
+          ${orderedOfficers.map((off, index) => {
             const countDays = activeRations.filter(r => r.officerId === off.id).length;
             const amount = countDays * settings.rationRate;
             return `<tr style="height: 35px;">
@@ -1585,7 +1630,7 @@ export default function ApprovalAndReports({
           </tr>
         </thead>
         <tbody>
-          ${officers.map((off, index) => {
+          ${orderedOfficers.map((off, index) => {
             const officerShifts = activeNightShifts.filter(n => n.officerId === off.id);
             let du2hCount = 0;
             let du4hCount = 0;
@@ -1637,7 +1682,7 @@ export default function ApprovalAndReports({
             <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">
               ${(() => {
                 let total2h = 0;
-                officers.forEach(off => {
+                orderedOfficers.forEach(off => {
                   daysArray.forEach(day => {
                     const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
                     const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
@@ -1650,7 +1695,7 @@ export default function ApprovalAndReports({
             <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">
               ${(() => {
                 let total4h = 0;
-                officers.forEach(off => {
+                orderedOfficers.forEach(off => {
                   daysArray.forEach(day => {
                     const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
                     const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
@@ -1735,7 +1780,7 @@ export default function ApprovalAndReports({
           </tr>
         </thead>
         <tbody>
-          ${officers.map((off, index) => {
+          ${orderedOfficers.map((off, index) => {
             const countShifts = activeNightShifts.filter(n => n.officerId === off.id).reduce((acc, curr) => acc + curr.hoursCount, 0);
             const amount = countShifts * settings.nightShiftRate;
             return `<tr style="height: 35px;">
@@ -2201,15 +2246,7 @@ export default function ApprovalAndReports({
             </div>
             
             <div className="divide-y divide-slate-100">
-              {[
-                { type: '1_bang_cham_cong', label: '1. Bảng chấm công tháng' },
-                { type: '2_bang_dinh_luong', label: '2. Bảng định lượng tuần tra (Mẫu 02)' },
-                { type: '3_danh_sach_tien_dinh_luong', label: '3. DS nhận tiền định lượng' },
-                { type: '4_de_xuat_dinh_luong', label: '4. Đề xuất thanh toán ĐL' },
-                { type: '5_bang_lam_dem', label: '5. Bảng chấm công làm đêm (Mẫu 05)' },
-                { type: '6_danh_sach_tien_lam_dem', label: '6. DS nhận tiền làm đêm' },
-                { type: '7_de_xuat_lam_dem', label: '7. Đề xuất thanh toán trực đêm' },
-              ].map((item) => (
+              {reportDefinitions.map((item) => (
                 <button
                   key={item.type}
                   onClick={() => setActiveReport(item.type as ReportType)}
@@ -2477,6 +2514,17 @@ export default function ApprovalAndReports({
                   <span>Soạn thảo (Word)</span>
                 </button>
                 <button
+                  onClick={() => {
+                    setEditTab('wordEmbed');
+                    addLog('Mở Word nhúng', `Đã mở ONLYOFFICE cho biểu mẫu ${activeReport} của tài khoản ${currentUser.username}.`);
+                  }}
+                  disabled={isSavingTemplate}
+                  className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Nhúng Word Web</span>
+                </button>
+                <button
                   onClick={handleCancelEditTemplate}
                   disabled={isSavingTemplate}
                   className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
@@ -2498,6 +2546,13 @@ export default function ApprovalAndReports({
           {templateCloudError ? (
             <div className="mb-4 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 print:hidden">
               {templateCloudError}
+            </div>
+          ) : null}
+          {isEditingTemplate ? (
+            <div className="mb-4 text-[11px] font-semibold rounded-lg px-4 py-3 print:hidden border border-slate-200 bg-slate-50 text-slate-700">
+              {hasOnlyOfficeConfig
+                ? 'Đã bật chế độ Word Web nhúng. Nút "Nhúng Word Web" sẽ gọi backend ONLYOFFICE để mở tài liệu chỉnh sửa trực tiếp trên trình duyệt.'
+                : 'Chưa cấu hình ONLYOFFICE Document Server. Bạn vẫn có thể dùng trình soạn thảo hiện tại; muốn nhúng Word thật thì cần thêm VITE_ONLYOFFICE_DOCUMENT_SERVER_URL và backend /api/onlyoffice/config.'}
             </div>
           ) : null}
           
@@ -2543,7 +2598,7 @@ export default function ApprovalAndReports({
 
                         {selectedCellKey && isLockedCellKey(selectedCellKey) ? (
                           <div className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5">
-                            Ô này là ô tính toán/dữ liệu hệ thống: không cho sửa nội dung.
+                            Ô này là ô tính toán/dữ liệu hệ thống: không cho sửa nội dung, nhưng vẫn cho chỉnh định dạng.
                           </div>
                         ) : null}
 
@@ -2677,7 +2732,7 @@ export default function ApprovalAndReports({
                         </button>
 
                         <div className="text-[11px] text-slate-500">
-                          Click vào chỗ cần sửa trong trang bên phải và gõ trực tiếp. Ô tính toán (cột ngày...) bị khóa nội dung; các phần khác chỉnh được.
+                          Click vào chỗ cần sửa trong trang bên phải và gõ trực tiếp. Ô tính toán hoặc dữ liệu hệ thống chỉ khóa nội dung; font, cỡ chữ, canh lề và định dạng vẫn chỉnh được.
                         </div>
 
                         <button
@@ -2704,6 +2759,20 @@ export default function ApprovalAndReports({
                   </div>
                 </div>
               ) : null}
+              <React.Suspense fallback={editTab === 'wordEmbed' ? <div className="fixed inset-0 z-[60] bg-slate-950/70" /> : null}>
+                <OnlyOfficeEditorModal
+                  isOpen={editTab === 'wordEmbed'}
+                  onClose={() => setEditTab('content')}
+                  requestPayload={{
+                    reportId: activeReport,
+                    reportLabel: activeReportLabel,
+                    selectedMonth,
+                    currentUser,
+                    sourceHtml: exportPreviewHtml,
+                    templateOverride: draftTemplate,
+                  }}
+                />
+              </React.Suspense>
 
               {/* Document Header (Tiêu ngữ hành chính Nhà nước) */}
               {activeReport !== '2_bang_dinh_luong' && activeReport !== '3_danh_sach_tien_dinh_luong' && activeReport !== '4_de_xuat_dinh_luong' && activeReport !== '5_bang_lam_dem' && activeReport !== '6_danh_sach_tien_lam_dem' && activeReport !== '7_de_xuat_lam_dem' && (
@@ -2794,7 +2863,7 @@ export default function ApprovalAndReports({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-zinc-300">
-                      {officers.map((off, index) => {
+                      {orderedOfficers.map((off, index) => {
                         const offAtts = activeAttendance.filter(a => a.officerId === off.id);
                         
                         let workDays = 0;
@@ -2913,7 +2982,7 @@ export default function ApprovalAndReports({
               return d.getDay() === 0;
             };
 
-            const totalRationSum = officers.reduce((acc, curr) => {
+            const totalRationSum = orderedOfficers.reduce((acc, curr) => {
               return acc + activeRations.filter(r => r.officerId === curr.id).length;
             }, 0);
 
@@ -3016,7 +3085,7 @@ export default function ApprovalAndReports({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-zinc-300">
-                      {officers.map((off, index) => {
+                      {orderedOfficers.map((off, index) => {
                         const offRations = activeRations.filter(r => r.officerId === off.id);
                         const totalDays = offRations.length;
 
@@ -3112,7 +3181,7 @@ export default function ApprovalAndReports({
             const year = parseInt(yearStr, 10);
             const month = parseInt(monthStr, 10);
 
-            const totalDays = officers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
+            const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
             const totalAmount = activeRations.reduce((acc, curr) => acc + curr.amount, 0);
 
             return (
@@ -3197,7 +3266,7 @@ export default function ApprovalAndReports({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-zinc-300">
-                      {officers.map((off, index) => {
+                      {orderedOfficers.map((off, index) => {
                         const countDays = activeRations.filter(r => r.officerId === off.id).length;
                         const amount = countDays * settings.rationRate;
 
@@ -3532,7 +3601,7 @@ export default function ApprovalAndReports({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-300 text-slate-850">
-                      {officers.map((off, index) => {
+                      {orderedOfficers.map((off, index) => {
                         const officerShifts = activeNightShifts.filter(n => n.officerId === off.id);
                         let du2hCount = 0;
                         let du4hCount = 0;
@@ -3592,7 +3661,7 @@ export default function ApprovalAndReports({
                         <td className="p-1 border border-slate-300 font-black text-[11px] text-center bg-slate-100">
                           {(() => {
                             let total2h = 0;
-                            officers.forEach(off => {
+                            orderedOfficers.forEach(off => {
                               daysArray.forEach(day => {
                                 const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
                                 const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
@@ -3605,7 +3674,7 @@ export default function ApprovalAndReports({
                         <td className="p-1 border border-slate-300 font-black text-[11px] text-center bg-slate-100">
                           {(() => {
                             let total4h = 0;
-                            officers.forEach(off => {
+                            orderedOfficers.forEach(off => {
                               daysArray.forEach(day => {
                                 const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
                                 const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
@@ -3746,7 +3815,7 @@ export default function ApprovalAndReports({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-300 text-slate-850">
-                      {officers.map((off, index) => {
+                      {orderedOfficers.map((off, index) => {
                         const countShifts = activeNightShifts.filter(n => n.officerId === off.id).reduce((acc, curr) => acc + curr.hoursCount, 0);
                         const amount = countShifts * settings.nightShiftRate;
 
@@ -4003,3 +4072,4 @@ export default function ApprovalAndReports({
     </div>
   );
 }
+
