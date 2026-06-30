@@ -4,6 +4,7 @@ import { formatCurrency, formatDateDmy, numberToVietnameseWords } from '../utils
 import { FileText, Lock, Unlock, Printer, Shield, Check, Calendar, HelpCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { hasOnlyOfficeConfig } from '../lib/onlyOffice';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 import {
   deleteTemplateOverrideFromSupabase,
   loadTemplateOverridesFromSupabase,
@@ -40,28 +41,6 @@ export default function ApprovalAndReports({
   schedules = [],
   teams = [],
 }: ApprovalAndReportsProps) {
-  const officerPositionOrder: Record<Officer['position'], number> = {
-    'Đội trưởng': 5,
-    'Phó Đội trưởng': 4,
-    'Trực ban': 3,
-    'Cán bộ': 2,
-    'Chiến sĩ': 1,
-  };
-  const officerRankOrder: Record<Officer['rank'], number> = {
-    'Đại tá': 13,
-    'Thượng tá': 12,
-    'Trung tá': 11,
-    'Thiếu tá': 10,
-    'Đại úy': 9,
-    'Thượng úy': 8,
-    'Trung úy': 7,
-    'Thiếu úy': 6,
-    'Thượng sĩ': 5,
-    'Trung sĩ': 4,
-    'Hạ sĩ': 3,
-    'Binh nhất': 2,
-    'Binh nhì': 1,
-  };
   const reportDefinitions: { type: ReportType; label: string }[] = [
     { type: '1_bang_cham_cong', label: '1. Bảng chấm công tháng' },
     { type: '2_bang_dinh_luong', label: '2. Bảng định lượng tuần tra (Mẫu 02)' },
@@ -199,17 +178,27 @@ export default function ApprovalAndReports({
   const hasCustomTemplate = Boolean(templateOverrides[activeReport]);
   const template = isEditingTemplate ? draftTemplate : currentTemplate;
   const activeReportLabel = reportDefinitions.find((item) => item.type === activeReport)?.label || activeReport;
-  const orderedOfficers = React.useMemo(() => {
-    return [...officers].sort((left, right) => {
-      const positionDiff = (officerPositionOrder[right.position] || 0) - (officerPositionOrder[left.position] || 0);
-      if (positionDiff !== 0) return positionDiff;
+  const orderedOfficers = React.useMemo(() => getFixedPersonnelOfficers(officers), [officers]);
+  const sPaternityLeave = settings.symbolPaternityLeave || 'NVS';
 
-      const rankDiff = (officerRankOrder[right.rank] || 0) - (officerRankOrder[left.rank] || 0);
-      if (rankDiff !== 0) return rankDiff;
+  const resolveAttendanceSymbol = (att: Attendance | undefined, isScheduled: boolean) => {
+    if (att) {
+      if (att.type === 'Làm việc') return { symbol: settings.symbolWork || 'x', countsAsWork: true };
+      if (att.type === 'Công tác') return { symbol: settings.symbolMission || 'Ct', countsAsWork: true };
+      if (att.type === 'Học tập') return { symbol: settings.symbolStudy || 'H', countsAsWork: true };
+      if (att.type === 'Nghỉ phép') return { symbol: settings.symbolLeave || 'P', countsAsWork: false };
+      if (att.type === 'Nghỉ vợ sinh') return { symbol: sPaternityLeave, countsAsWork: false };
+      if (att.type === 'Nghỉ bù') return { symbol: settings.symbolCompensation || 'Nb', countsAsWork: false };
+      if (att.type === 'Nghỉ sinh') return { symbol: settings.symbolMaternity || 'Ts', countsAsWork: false };
+      if (att.type === 'Nghỉ dưỡng') return { symbol: settings.symbolRest || 'Nd', countsAsWork: false };
+    }
 
-      return left.fullName.localeCompare(right.fullName, 'vi');
-    });
-  }, [officers]);
+    if (isScheduled) {
+      return { symbol: settings.symbolWork || 'x', countsAsWork: true };
+    }
+
+    return { symbol: '', countsAsWork: false };
+  };
 
   const EditableText = ({
     value,
@@ -257,6 +246,7 @@ export default function ApprovalAndReports({
     italic?: boolean;
     underline?: boolean;
     align?: 'left' | 'center' | 'right' | 'justify';
+    textColor?: string;
     widthPx?: number;
     paddingPx?: number;
     lineHeight?: number;
@@ -612,6 +602,7 @@ export default function ApprovalAndReports({
       if (typeof override.italic === 'boolean') parts.push(`font-style:${override.italic ? 'italic' : 'normal'} !important`);
       if (typeof override.underline === 'boolean') parts.push(`text-decoration:${override.underline ? 'underline' : 'none'} !important`);
       if (override.align) parts.push(`text-align:${override.align} !important`);
+      if (typeof override.textColor === 'string' && override.textColor.trim()) parts.push(`color:${override.textColor} !important`);
       if (typeof override.widthPx === 'number') parts.push(`width:${override.widthPx}px !important`);
       if (typeof override.paddingPx === 'number') parts.push(`padding:${override.paddingPx}px !important`);
       if (typeof override.lineHeight === 'number') parts.push(`line-height:${override.lineHeight} !important`);
@@ -1156,35 +1147,8 @@ export default function ApprovalAndReports({
               const att = offAtts.find(a => a.date === dateStr);
               const isScheduled = isOfficerScheduled(off.id, dateStr);
               
-              let symbol = '';
-              if (isScheduled) {
-                symbol = sWork;
-                workDays++;
-              } else if (att) {
-                if (att.type === 'Làm việc') {
-                  symbol = sWork;
-                  workDays++;
-                } else if (att.type === 'Công tác') {
-                  symbol = sMission;
-                  workDays++;
-                } else if (att.type === 'Học tập') {
-                  symbol = sStudy;
-                  workDays++;
-                } else if (att.type === 'Nghỉ phép') {
-                  symbol = sLeave;
-                } else if (att.type === 'Nghỉ bù') {
-                  symbol = sCompensation;
-                } else if (att.type === 'Nghỉ sinh') {
-                  symbol = sMaternity;
-                } else if (att.type === 'Nghỉ dưỡng') {
-                  symbol = sRest;
-                } else {
-                  symbol = sWork;
-                  workDays++;
-                }
-              } else {
-                symbol = '';
-              }
+              const { symbol, countsAsWork } = resolveAttendanceSymbol(att, isScheduled);
+              if (countsAsWork) workDays++;
               if (!symbol) blankDays++;
               return `<td ${cellKeyAttr(`b1_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; ${sun ? 'background-color: #e4e4e7;' : ''} ${cellStyleCss(`b1_day_${day}`)}">${symbol}</td>`;
             }).join('');
@@ -1257,8 +1221,9 @@ export default function ApprovalAndReports({
           <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Đi công tác: <b>${sMission}</b></td>
         </tr>
         <tr>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Nghỉ vợ sinh: <b>${sPaternityLeave}</b></td>
           <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Điều dưỡng: <b>${sRest}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px;" colspan="2"></td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px;" colspan="1"></td>
         </tr>
       </table>
           </td>
@@ -2632,6 +2597,18 @@ export default function ApprovalAndReports({
                             />
                           </div>
                           <div>
+                            <label className="block text-[11px] font-semibold text-slate-500">Màu chữ</label>
+                            <input
+                              type="color"
+                              value={selectedCellKey ? (draftTemplate.cellStyleOverrides?.[selectedCellKey]?.textColor ?? '#000000') : '#000000'}
+                              onChange={(e) => {
+                                if (!selectedCellKey) return;
+                                updateSelectedCellStyle({ textColor: e.target.value || undefined });
+                              }}
+                              className="w-full h-[34px] px-1 py-1 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg outline-hidden"
+                            />
+                          </div>
+                          <div>
                             <label className="block text-[11px] font-semibold text-slate-500">Canh</label>
                             <select
                               value={selectedCellKey ? (draftTemplate.cellStyleOverrides?.[selectedCellKey]?.align ?? '') : ''}
@@ -2881,42 +2858,8 @@ export default function ApprovalAndReports({
                               const att = offAtts.find(a => a.date === dateStr);
                               const isScheduled = isOfficerScheduled(off.id, dateStr);
                               
-                              let symbol = '';
-                              if (isScheduled) {
-                                symbol = sWork;
-                                workDays++;
-                              } else if (att) {
-                                if (att.type === 'Làm việc') {
-                                  symbol = sWork;
-                                  workDays++;
-                                } else if (att.type === 'Công tác') {
-                                  symbol = sMission;
-                                  workDays++;
-                                } else if (att.type === 'Học tập') {
-                                  symbol = sStudy;
-                                  workDays++;
-                                } else if (att.type === 'Nghỉ phép') {
-                                  symbol = sLeave;
-                                } else if (att.type === 'Nghỉ bù') {
-                                  symbol = sCompensation;
-                                } else if (att.type === 'Nghỉ sinh') {
-                                  symbol = sMaternity;
-                                } else if (att.type === 'Nghỉ dưỡng') {
-                                  symbol = sRest;
-                                } else {
-                                  symbol = sWork;
-                                  workDays++;
-                                }
-                              } else {
-                                // Default status when no explicit record exists:
-                                if (sun) {
-                                  // Sundays default to off-duty (blank) unless scheduled
-                                  symbol = '';
-                                } else {
-                                  // Weekdays default to blank
-                                  symbol = '';
-                                }
-                              }
+                              const { symbol, countsAsWork } = resolveAttendanceSymbol(att, isScheduled);
+                              if (countsAsWork) workDays++;
                               if (!symbol) blankDays++;
 
                               return (
@@ -2958,6 +2901,7 @@ export default function ApprovalAndReports({
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
                     <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Làm việc: <strong className="text-amber-700 font-extrabold">{sWork}</strong></div>
                     <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Nghỉ phép: <strong className="font-extrabold">{sLeave}</strong></div>
+                    <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Nghỉ vợ sinh: <strong className="font-extrabold">{sPaternityLeave}</strong></div>
                     <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Hội nghị, học tập: <strong className="font-extrabold">{sStudy}</strong></div>
                     <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Công tác: <strong className="font-extrabold">{sMission}</strong></div>
                     <div className="p-1.5 border border-zinc-200 bg-zinc-50 rounded">Ốm, thai sản: <strong className="font-extrabold">{sMaternity}</strong></div>
@@ -4072,4 +4016,3 @@ export default function ApprovalAndReports({
     </div>
   );
 }
-

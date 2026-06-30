@@ -22,6 +22,7 @@ create table if not exists public.officers (
   badge_number text not null default '',
   department text not null default '',
   phone_number text not null default '',
+  year_of_birth integer null,
   status text not null check (status in ('Đang công tác', 'Tạm nghỉ', 'Chuyển công tác')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -57,7 +58,7 @@ create table if not exists public.attendance (
   id text primary key,
   officer_id text not null references public.officers(id) on delete cascade,
   date date not null,
-  type text not null check (type in ('Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ sinh', 'Nghỉ dưỡng')),
+  type text not null check (type in ('Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ vợ sinh', 'Nghỉ sinh', 'Nghỉ dưỡng')),
   source_schedule_id text null references public.patrol_schedules(id) on delete set null,
   hours numeric(10,2) null,
   notes text null,
@@ -118,6 +119,7 @@ create table if not exists public.system_settings (
   symbol_mission text not null default 'Ct',
   symbol_study text not null default 'H',
   symbol_leave text not null default 'P',
+  symbol_paternity_leave text not null default 'NVS',
   symbol_compensation text not null default 'Nb',
   symbol_maternity text not null default 'Ts',
   symbol_rest text not null default 'Nd',
@@ -132,9 +134,69 @@ create table if not exists public.system_settings (
   signer_leader_sub_title text null,
   signer_leader_seal_title text null,
   max_night_shift_compensation_turns integer not null default 10,
+  paternity_leave_max_days integer not null default 14,
+  paternity_leave_eligibility text null,
+  paternity_leave_registration_process text null,
+  paternity_leave_approval_process text null,
+  paternity_leave_payroll_policy text null,
+  paternity_leave_attendance_policy text null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table if exists public.officers
+add column if not exists year_of_birth integer null;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'attendance'
+      and constraint_name = 'attendance_type_check'
+  ) then
+    alter table public.attendance drop constraint attendance_type_check;
+  end if;
+exception
+  when undefined_table then
+    null;
+end;
+$$;
+
+do $$
+begin
+  alter table public.attendance
+  add constraint attendance_type_check
+  check (type in ('Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ vợ sinh', 'Nghỉ sinh', 'Nghỉ dưỡng'));
+exception
+  when duplicate_object then
+    null;
+  when undefined_table then
+    null;
+end;
+$$;
+
+alter table if exists public.system_settings
+add column if not exists symbol_paternity_leave text not null default 'NVS';
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_max_days integer not null default 14;
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_eligibility text null;
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_registration_process text null;
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_approval_process text null;
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_payroll_policy text null;
+
+alter table if exists public.system_settings
+add column if not exists paternity_leave_attendance_policy text null;
 
 create table if not exists public.report_template_overrides (
   user_id text not null references public.users(id) on delete cascade,

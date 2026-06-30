@@ -12,6 +12,7 @@ insert into public.system_settings (
   symbol_mission,
   symbol_study,
   symbol_leave,
+  symbol_paternity_leave,
   symbol_compensation,
   symbol_maternity,
   symbol_rest,
@@ -25,7 +26,13 @@ insert into public.system_settings (
   signer_leader_acting_title,
   signer_leader_sub_title,
   signer_leader_seal_title,
-  max_night_shift_compensation_turns
+  max_night_shift_compensation_turns,
+  paternity_leave_max_days,
+  paternity_leave_eligibility,
+  paternity_leave_registration_process,
+  paternity_leave_approval_process,
+  paternity_leave_payroll_policy,
+  paternity_leave_attendance_policy
 ) values (
   'default',
   75000,
@@ -37,6 +44,7 @@ insert into public.system_settings (
   'Ct',
   'H',
   'P',
+  'NVS',
   'Nb',
   'Ts',
   'Nd',
@@ -50,7 +58,13 @@ insert into public.system_settings (
   'KT. TRƯỞNG PHÒNG',
   'PHÓ TRƯỞNG PHÒNG',
   'TRƯỞNG PHÒNG CSGT',
-  10
+  10,
+  14,
+  'Áp dụng cho CBCS nam đang tham gia BHXH khi vợ sinh con, có hồ sơ chứng minh hợp lệ theo quy định hiện hành.',
+  'CBCS lập đề nghị nghỉ NVS, cập nhật hệ thống và nộp giấy khai sinh/giấy chứng sinh cho chỉ huy trực tiếp.',
+  'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ và trình lãnh đạo duyệt trước khi khóa tháng.',
+  'Ngày nghỉ NVS không tính định lượng tuần tra, không tính làm đêm; chế độ chi trả thực hiện theo hồ sơ BHXH.',
+  'Ngày nghỉ NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu có đăng ký cùng ngày.'
 )
 on conflict (id) do update
 set
@@ -63,6 +77,7 @@ set
   symbol_mission = excluded.symbol_mission,
   symbol_study = excluded.symbol_study,
   symbol_leave = excluded.symbol_leave,
+  symbol_paternity_leave = excluded.symbol_paternity_leave,
   symbol_compensation = excluded.symbol_compensation,
   symbol_maternity = excluded.symbol_maternity,
   symbol_rest = excluded.symbol_rest,
@@ -76,7 +91,13 @@ set
   signer_leader_acting_title = excluded.signer_leader_acting_title,
   signer_leader_sub_title = excluded.signer_leader_sub_title,
   signer_leader_seal_title = excluded.signer_leader_seal_title,
-  max_night_shift_compensation_turns = excluded.max_night_shift_compensation_turns;
+  max_night_shift_compensation_turns = excluded.max_night_shift_compensation_turns,
+  paternity_leave_max_days = excluded.paternity_leave_max_days,
+  paternity_leave_eligibility = excluded.paternity_leave_eligibility,
+  paternity_leave_registration_process = excluded.paternity_leave_registration_process,
+  paternity_leave_approval_process = excluded.paternity_leave_approval_process,
+  paternity_leave_payroll_policy = excluded.paternity_leave_payroll_policy,
+  paternity_leave_attendance_policy = excluded.paternity_leave_attendance_policy;
 
 insert into public.users (id, username, password, role, full_name, officer_id)
 values

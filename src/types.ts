@@ -39,6 +39,7 @@ export interface Officer {
   badgeNumber: string; // Số hiệu CAND
   department: string;  // Đội công nghiệp/Đội tuần tra/Đội hành chính...
   phoneNumber: string;
+  yearOfBirth?: number;
   status: 'Đang công tác' | 'Tạm nghỉ' | 'Chuyển công tác';
 }
 
@@ -79,6 +80,7 @@ export type AttendanceType =
   | 'Học tập' 
   | 'Nghỉ bù' 
   | 'Nghỉ phép' 
+  | 'Nghỉ vợ sinh'
   | 'Nghỉ sinh' 
   | 'Nghỉ dưỡng';
 
@@ -142,6 +144,7 @@ export interface SystemSettings {
   symbolMission?: string; // Ký hiệu đi công tác (Mặc định 'Ct')
   symbolStudy?: string;   // Ký hiệu đi học tập (Mặc định 'H')
   symbolLeave?: string;   // Ký hiệu nghỉ phép (Mặc định 'P')
+  symbolPaternityLeave?: string; // Ký hiệu nghỉ vợ sinh (Mặc định 'NVS')
   symbolCompensation?: string; // Ký hiệu nghỉ bù (Mặc định 'Nb')
   symbolMaternity?: string;    // Ký hiệu nghỉ thai sản (Mặc định 'Ts')
   symbolRest?: string;         // Ký hiệu nghỉ dưỡng (Mặc định 'Nd')
@@ -156,6 +159,12 @@ export interface SystemSettings {
   signerLeaderSubTitle?: string; // Dòng phụ (VD: PHÓ TRƯỞNG PHÒNG)
   signerLeaderSealTitle?: string; // Chức danh đóng dấu (VD: TRƯỞNG PHÒNG CSGT)
   maxNightShiftCompensationTurns?: number; // Số lượt tối đa được hưởng bồi dưỡng làm đêm
+  paternityLeaveMaxDays?: number; // Số ngày nghỉ tối đa chế độ nghỉ vợ sinh
+  paternityLeaveEligibility?: string; // Điều kiện áp dụng nghỉ vợ sinh
+  paternityLeaveRegistrationProcess?: string; // Quy trình đăng ký nghỉ vợ sinh
+  paternityLeaveApprovalProcess?: string; // Quy trình phê duyệt nghỉ vợ sinh
+  paternityLeavePayrollPolicy?: string; // Liên kết chính sách lương cho nghỉ vợ sinh
+  paternityLeaveAttendancePolicy?: string; // Liên kết chính sách chấm công cho nghỉ vợ sinh
 }
 
 export type ReportTemplateId =
@@ -216,6 +225,7 @@ export interface ReportTemplateOverride {
         italic?: boolean;
         underline?: boolean;
         align?: 'left' | 'center' | 'right' | 'justify';
+        textColor?: string;
         widthPx?: number;
         paddingPx?: number;
         lineHeight?: number;

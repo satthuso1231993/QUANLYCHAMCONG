@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Officer, OfficerRank, OfficerPosition, AuditLog } from '../types';
 import { Plus, Search, Edit2, Trash2, Upload, FileSpreadsheet, Check, X, AlertCircle } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface OfficerManagementProps {
   officers: Officer[];
@@ -10,7 +11,6 @@ interface OfficerManagementProps {
 
 export default function OfficerManagement({ officers, setOfficers, addLog }: OfficerManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingOfficer, setEditingOfficer] = useState<Officer | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -22,6 +22,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
   const [badgeNumber, setBadgeNumber] = useState('');
   const [department, setDepartment] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [yearOfBirth, setYearOfBirth] = useState('');
   const [status, setStatus] = useState<'Đang công tác' | 'Tạm nghỉ' | 'Chuyển công tác'>('Đang công tác');
 
   // Excel import simulations
@@ -38,7 +39,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
     'Thượng sĩ', 'Trung sĩ', 'Hạ sĩ', 'Binh nhất', 'Binh nhì'
   ];
 
-  const positions: OfficerPosition[] = ['Đội trưởng', 'Phó Đội trưởng', 'Cán bộ', 'Chiến sĩ', 'Trực ban'];
+  const positions: OfficerPosition[] = ['Đội trưởng', 'Phó Đội trưởng', 'Cán bộ', 'Chiến sĩ'];
 
   const uniqueDepartments = Array.from(new Set(officers.map(o => o.department))).filter(Boolean);
 
@@ -50,6 +51,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
     setBadgeNumber('');
     setDepartment(uniqueDepartments[0] || 'Đội Tuần tra Kiểm soát số 1');
     setPhoneNumber('');
+    setYearOfBirth('');
     setStatus('Đang công tác');
     setShowModal(true);
   };
@@ -62,6 +64,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
     setBadgeNumber(officer.badgeNumber || '');
     setDepartment(officer.department);
     setPhoneNumber(officer.phoneNumber || '');
+    setYearOfBirth(officer.yearOfBirth ? String(officer.yearOfBirth) : '');
     setStatus(officer.status);
     setShowModal(true);
   };
@@ -104,6 +107,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
         badgeNumber,
         department,
         phoneNumber,
+        yearOfBirth: yearOfBirth ? Number(yearOfBirth) : undefined,
         status,
       } : o));
       addLog('Sửa thông tin cán bộ', `Đã cập nhật thông tin cho ${rank} ${fullName}${badgeNumber.trim() ? ` (Số hiệu: ${badgeNumber}).` : '.'}`);
@@ -117,6 +121,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
         badgeNumber,
         department,
         phoneNumber,
+        yearOfBirth: yearOfBirth ? Number(yearOfBirth) : undefined,
         status,
       };
       setOfficers(prev => [...prev, newOfficer]);
@@ -156,9 +161,9 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
     // Generate simulated parsed rows reflecting actual traffic officers excel format
     const mockParsed = [
       { fullName: 'Trần Văn Kiên', rank: 'Thiếu úy' as OfficerRank, position: 'Cán bộ' as OfficerPosition, badgeNumber: '114-102', department: 'Đội Tuần tra Kiểm soát số 1', phoneNumber: '0981122334', status: 'Đang công tác' as const },
-      { fullName: 'Lê Hoàng Hải', rank: 'Thượng tá' as OfficerRank, position: 'Phó Đội trưởng' as OfficerPosition, badgeNumber: '293-847', department: 'Đội CSGT Dẫn đoàn', phoneNumber: '0912888888', status: 'Đang công tác' as const },
-      { fullName: 'Nguyễn Huy Hoàng', rank: 'Trung úy' as OfficerRank, position: 'Cán bộ' as OfficerPosition, badgeNumber: '333-511', department: 'Đội Tuần tra Kiểm soát số 1', phoneNumber: '0966554433', status: 'Đang công tác' as const },
-      { fullName: 'Ngô Việt Anh', rank: 'Binh nhất' as OfficerRank, position: 'Chiến sĩ' as OfficerPosition, badgeNumber: '904-201', department: 'Đội Tuyên truyền & Xử lý vi phạm', phoneNumber: '0904112211', status: 'Đang công tác' as const },
+      { fullName: 'Lê Hoàng Hải', rank: 'Thượng tá' as OfficerRank, position: 'Phó Đội trưởng' as OfficerPosition, badgeNumber: '293-847', department: 'Đội CSGT Dẫn đoàn', phoneNumber: '0912888888', yearOfBirth: 1983, status: 'Đang công tác' as const },
+      { fullName: 'Nguyễn Huy Hoàng', rank: 'Trung úy' as OfficerRank, position: 'Cán bộ' as OfficerPosition, badgeNumber: '333-511', department: 'Đội Tuần tra Kiểm soát số 1', phoneNumber: '0966554433', yearOfBirth: 1992, status: 'Đang công tác' as const },
+      { fullName: 'Ngô Việt Anh', rank: 'Binh nhất' as OfficerRank, position: 'Chiến sĩ' as OfficerPosition, badgeNumber: '904-201', department: 'Đội Tuyên truyền & Xử lý vi phạm', phoneNumber: '0904112211', yearOfBirth: 2001, status: 'Đang công tác' as const },
     ];
     setImportedRows(mockParsed);
   };
@@ -190,15 +195,14 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
   };
 
   // Filter and Search logic
-  const filteredOfficers = officers.filter(o => {
+  const fixedPersonnelOfficers = useMemo(() => getFixedPersonnelOfficers(officers), [officers]);
+  const filteredOfficers = fixedPersonnelOfficers.filter(o => {
     const matchesSearch = 
       o.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.badgeNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (o.phoneNumber && o.phoneNumber.includes(searchTerm));
-    
-    const matchesDepartment = filterDepartment === 'all' || o.department === filterDepartment;
-    
-    return matchesSearch && matchesDepartment;
+
+    return matchesSearch;
   });
 
   return (
@@ -233,7 +237,6 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
 
       {/* Filter and Search controls */}
       <div className="flex flex-col md:flex-row gap-3.5">
-        {/* Search */}
         <div className="flex-1 relative">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
             <Search className="w-4 h-4" />
@@ -246,18 +249,6 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
             className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 focus:border-blue-500 rounded-lg text-xs outline-hidden shadow-2xs"
           />
         </div>
-
-        {/* Squad/Dept filter */}
-        <select
-          value={filterDepartment}
-          onChange={(e) => setFilterDepartment(e.target.value)}
-          className="px-4 py-2 bg-white border border-slate-200 focus:border-blue-500 rounded-lg text-xs font-medium text-slate-700 outline-hidden shadow-2xs"
-        >
-          <option value="all">Tất cả đội công tác</option>
-          {uniqueDepartments.map(dept => (
-            <option key={dept} value={dept}>{dept}</option>
-          ))}
-        </select>
       </div>
 
       {/* Officers Table Card */}
@@ -269,6 +260,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
                 <th className="py-3 px-4">Họ tên</th>
                 <th className="py-3 px-4">Cấp bậc</th>
                 <th className="py-3 px-4">Chức vụ</th>
+                <th className="py-3 px-4 text-center">Năm sinh</th>
                 <th className="py-3 px-4 text-center">Số hiệu CAND</th>
                 <th className="py-3 px-4">Đội công tác</th>
                 <th className="py-3 px-4">Số điện thoại</th>
@@ -279,7 +271,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {filteredOfficers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     Không tìm thấy cán bộ chiến sĩ nào phù hợp với bộ lọc.
                   </td>
                 </tr>
@@ -298,6 +290,9 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
                       }`}>
                         {officer.position}
                       </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-semibold text-slate-600">
+                      {officer.yearOfBirth || '-'}
                     </td>
                     <td className="py-3.5 px-4 text-center font-mono font-medium text-slate-500 bg-slate-50/30">
                       {officer.badgeNumber}
@@ -340,7 +335,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
           </table>
         </div>
         <div className="bg-slate-50 p-3.5 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
-          <span>Hiển thị {filteredOfficers.length} trên tổng số {officers.length} CBCS</span>
+          <span>Hiển thị {filteredOfficers.length} trên tổng số {fixedPersonnelOfficers.length} nhân sự cố định</span>
           <span className="font-semibold text-slate-600">Đơn vị: Phòng Cảnh sát giao thông</span>
         </div>
       </div>
@@ -421,6 +416,19 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     placeholder="VD: 0912345678"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Năm sinh</label>
+                  <input
+                    type="number"
+                    min={1950}
+                    max={2100}
+                    value={yearOfBirth}
+                    onChange={(e) => setYearOfBirth(e.target.value)}
+                    placeholder="VD: 1988"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden font-mono"
                   />
                 </div>

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Officer, Attendance, AttendanceType, Approval, User } from '../types';
+import { Officer, Attendance, AttendanceType, Approval, SystemSettings, User } from '../types';
 import { formatDateDmy } from '../utils/helpers';
 import { Plus, Check, Calendar, Search, Trash2, Sliders, AlertTriangle, ChevronRight, ChevronLeft, LayoutGrid, List, Lock, X } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface AttendanceManagementProps {
   attendance: Attendance[];
   setAttendance: React.Dispatch<React.SetStateAction<Attendance[]>>;
   officers: Officer[];
   approvals: Approval[];
+  settings: SystemSettings;
   addLog: (action: string, details: string) => void;
   currentUser: User;
 }
@@ -17,6 +19,7 @@ export default function AttendanceManagement({
   setAttendance,
   officers,
   approvals,
+  settings,
   addLog,
   currentUser,
 }: AttendanceManagementProps) {
@@ -36,8 +39,9 @@ export default function AttendanceManagement({
   const [notes, setNotes] = useState('');
 
   const attendanceTypes: AttendanceType[] = [
-    'Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ sinh', 'Nghỉ dưỡng'
+    'Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ vợ sinh', 'Nghỉ sinh', 'Nghỉ dưỡng'
   ];
+  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
 
   const isMonthLocked = (dateStr: string) => {
     return false; // Lock functionality removed
@@ -47,7 +51,7 @@ export default function AttendanceManagement({
     if (currentUser.role === 'officer_self' && currentUser.officerId) {
       setOfficerId(currentUser.officerId);
     } else {
-      setOfficerId(officers[0]?.id || '');
+      setOfficerId(fixedPersonnelOfficers[0]?.id || '');
     }
     const targetDate = dateStr || new Date().toISOString().split('T')[0];
     setStartDate(targetDate);
@@ -101,6 +105,11 @@ export default function AttendanceManagement({
     const targetDates = getDatesInRange(startDate, endDate);
     if (targetDates.length === 0) {
       alert('Vui lòng chọn khoảng ngày hợp lệ!');
+      return;
+    }
+
+    if (type === 'Nghỉ vợ sinh' && targetDates.length > (settings.paternityLeaveMaxDays || 14)) {
+      alert(`Nghỉ vợ sinh chỉ được đăng ký tối đa ${settings.paternityLeaveMaxDays || 14} ngày theo cấu hình hiện tại.`);
       return;
     }
 
@@ -430,7 +439,7 @@ export default function AttendanceManagement({
             </div>
 
             <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-              {officers.filter(off => {
+              {fixedPersonnelOfficers.filter(off => {
                 if (currentUser.role === 'officer_self') {
                   return off.id === currentUser.officerId;
                 }
@@ -440,7 +449,8 @@ export default function AttendanceManagement({
                 const countLàmViệc = offAtts.filter(a => a.type === 'Làm việc').length;
                 const countCôngTác = offAtts.filter(a => a.type === 'Công tác').length;
                 const countNghỉPhép = offAtts.filter(a => a.type === 'Nghỉ phép').length;
-                const countPhépKhác = offAtts.filter(a => a.type !== 'Làm việc' && a.type !== 'Công tác' && a.type !== 'Nghỉ phép').length;
+                const countNVS = offAtts.filter(a => a.type === 'Nghỉ vợ sinh').length;
+                const countPhépKhác = offAtts.filter(a => !['Làm việc', 'Công tác', 'Nghỉ phép', 'Nghỉ vợ sinh'].includes(a.type)).length;
 
                 return (
                   <div key={off.id} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:border-slate-350 transition-all">
@@ -452,7 +462,7 @@ export default function AttendanceManagement({
                       SH: {off.badgeNumber}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-1 text-[10px] text-slate-600 mt-2.5 pt-2 border-t border-slate-200/50">
+                    <div className="grid grid-cols-5 gap-1 text-[10px] text-slate-600 mt-2.5 pt-2 border-t border-slate-200/50">
                       <div className="text-center">
                         <span className="block font-bold text-blue-600 text-xs">{countLàmViệc}</span>
                         <span>Làm việc</span>
@@ -464,6 +474,10 @@ export default function AttendanceManagement({
                       <div className="text-center">
                         <span className="block font-bold text-emerald-600 text-xs">{countNghỉPhép}</span>
                         <span>Nghỉ phép</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block font-bold text-cyan-600 text-xs">{countNVS}</span>
+                        <span>NVS</span>
                       </div>
                       <div className="text-center">
                         <span className="block font-bold text-slate-600 text-xs">{countPhépKhác}</span>
@@ -557,6 +571,7 @@ export default function AttendanceManagement({
                         'Công tác': 'bg-purple-50 text-purple-700 border-purple-200/60',
                         'Học tập': 'bg-indigo-50 text-indigo-700 border-indigo-200/60',
                         'Nghỉ phép': 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
+                        'Nghỉ vợ sinh': 'bg-cyan-50 text-cyan-700 border-cyan-200/60',
                         'Nghỉ bù': 'bg-amber-50 text-amber-700 border-amber-200/60',
                         'Nghỉ sinh': 'bg-pink-50 text-pink-700 border-pink-200/60',
                         'Nghỉ dưỡng': 'bg-teal-50 text-teal-700 border-teal-200/60'
@@ -626,7 +641,7 @@ export default function AttendanceManagement({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="" disabled>--- Chọn cán bộ ---</option>
-                  {officers.filter(o => {
+                  {fixedPersonnelOfficers.filter(o => {
                     if (currentUser.role === 'officer_self') {
                       return o.id === currentUser.officerId;
                     }
@@ -677,6 +692,26 @@ export default function AttendanceManagement({
                 </select>
               </div>
 
+              {type === 'Nghỉ vợ sinh' ? (
+                <div className="space-y-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3">
+                  <div className="text-xs font-bold text-cyan-800">
+                    Chính sách NVS: tối đa {settings.paternityLeaveMaxDays || 14} ngày, ký hiệu bảng công {settings.symbolPaternityLeave || 'NVS'}
+                  </div>
+                  <div className="text-[11px] text-cyan-900">
+                    <strong>Điều kiện:</strong> {settings.paternityLeaveEligibility || 'Theo cấu hình hệ thống.'}
+                  </div>
+                  <div className="text-[11px] text-cyan-900">
+                    <strong>Đăng ký:</strong> {settings.paternityLeaveRegistrationProcess || 'Theo cấu hình hệ thống.'}
+                  </div>
+                  <div className="text-[11px] text-cyan-900">
+                    <strong>Phê duyệt:</strong> {settings.paternityLeaveApprovalProcess || 'Theo cấu hình hệ thống.'}
+                  </div>
+                  <div className="text-[11px] text-cyan-900">
+                    <strong>Liên kết chấm công - lương:</strong> {settings.paternityLeavePayrollPolicy || 'Theo cấu hình hệ thống.'}
+                  </div>
+                </div>
+              ) : null}
+
               {/* Ghi chú */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Lý do / Quyết định liên quan</label>
@@ -692,7 +727,7 @@ export default function AttendanceManagement({
               <div className="flex items-start gap-2 bg-amber-50 p-3 rounded-lg border border-amber-100">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span className="text-[10px] text-amber-800 leading-normal">
-                  Chế độ chấm thủ công (như phép, công tác, trực cơ quan) dùng để tổng hợp báo cáo hành chính. Chế độ này không tự động cộng thêm phụ cấp định lượng tuần tra và tiền làm đêm trừ khi được định nghĩa trong lịch tuần tra cụ thể.
+                  Chế độ chấm thủ công (như phép, công tác, NVS) dùng để tổng hợp báo cáo hành chính. Chế độ này không tự động cộng thêm phụ cấp định lượng tuần tra và tiền làm đêm; với NVS, hệ thống áp dụng theo chính sách đã cấu hình.
                 </span>
               </div>
 

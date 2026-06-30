@@ -61,6 +61,7 @@ const toOfficer = (row: any): Officer => ({
   badgeNumber: row.badge_number ?? '',
   department: row.department ?? '',
   phoneNumber: row.phone_number ?? '',
+  yearOfBirth: row.year_of_birth === null || row.year_of_birth === undefined ? undefined : Number(row.year_of_birth),
   status: row.status,
 });
 
@@ -72,6 +73,7 @@ const fromOfficer = (row: Officer) => ({
   badge_number: row.badgeNumber,
   department: row.department,
   phone_number: row.phoneNumber,
+  year_of_birth: row.yearOfBirth ?? null,
   status: row.status,
 });
 
@@ -219,6 +221,7 @@ const toSettings = (row: any): SystemSettings => ({
   symbolMission: row.symbol_mission ?? 'Ct',
   symbolStudy: row.symbol_study ?? 'H',
   symbolLeave: row.symbol_leave ?? 'P',
+  symbolPaternityLeave: row.symbol_paternity_leave ?? 'NVS',
   symbolCompensation: row.symbol_compensation ?? 'Nb',
   symbolMaternity: row.symbol_maternity ?? 'Ts',
   symbolRest: row.symbol_rest ?? 'Nd',
@@ -233,6 +236,12 @@ const toSettings = (row: any): SystemSettings => ({
   signerLeaderSubTitle: row.signer_leader_sub_title ?? undefined,
   signerLeaderSealTitle: row.signer_leader_seal_title ?? undefined,
   maxNightShiftCompensationTurns: Number(row.max_night_shift_compensation_turns ?? 10),
+  paternityLeaveMaxDays: Number(row.paternity_leave_max_days ?? 14),
+  paternityLeaveEligibility: row.paternity_leave_eligibility ?? undefined,
+  paternityLeaveRegistrationProcess: row.paternity_leave_registration_process ?? undefined,
+  paternityLeaveApprovalProcess: row.paternity_leave_approval_process ?? undefined,
+  paternityLeavePayrollPolicy: row.paternity_leave_payroll_policy ?? undefined,
+  paternityLeaveAttendancePolicy: row.paternity_leave_attendance_policy ?? undefined,
 });
 
 const fromSettings = (row: SystemSettings) => ({
@@ -246,6 +255,7 @@ const fromSettings = (row: SystemSettings) => ({
   symbol_mission: row.symbolMission ?? 'Ct',
   symbol_study: row.symbolStudy ?? 'H',
   symbol_leave: row.symbolLeave ?? 'P',
+  symbol_paternity_leave: row.symbolPaternityLeave ?? 'NVS',
   symbol_compensation: row.symbolCompensation ?? 'Nb',
   symbol_maternity: row.symbolMaternity ?? 'Ts',
   symbol_rest: row.symbolRest ?? 'Nd',
@@ -260,6 +270,12 @@ const fromSettings = (row: SystemSettings) => ({
   signer_leader_sub_title: row.signerLeaderSubTitle ?? null,
   signer_leader_seal_title: row.signerLeaderSealTitle ?? null,
   max_night_shift_compensation_turns: row.maxNightShiftCompensationTurns ?? 10,
+  paternity_leave_max_days: row.paternityLeaveMaxDays ?? 14,
+  paternity_leave_eligibility: row.paternityLeaveEligibility ?? null,
+  paternity_leave_registration_process: row.paternityLeaveRegistrationProcess ?? null,
+  paternity_leave_approval_process: row.paternityLeaveApprovalProcess ?? null,
+  paternity_leave_payroll_policy: row.paternityLeavePayrollPolicy ?? null,
+  paternity_leave_attendance_policy: row.paternityLeaveAttendancePolicy ?? null,
 });
 
 const replaceTableById = async (table: string, rows: any[]) => {

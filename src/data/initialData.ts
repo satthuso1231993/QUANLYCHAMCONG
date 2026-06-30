@@ -10,6 +10,7 @@ export const initialSettings: SystemSettings = {
   symbolMission: 'Ct',
   symbolStudy: 'H',
   symbolLeave: 'P',
+  symbolPaternityLeave: 'NVS',
   symbolCompensation: 'Nb',
   symbolMaternity: 'Ts',
   symbolRest: 'Nd',
@@ -24,6 +25,12 @@ export const initialSettings: SystemSettings = {
   signerLeaderSubTitle: 'PHÓ TRƯỞNG PHÒNG',
   signerLeaderSealTitle: 'TRƯỞNG PHÒNG CSGT',
   maxNightShiftCompensationTurns: 10,
+  paternityLeaveMaxDays: 14,
+  paternityLeaveEligibility: 'Áp dụng cho CBCS nam đang tham gia BHXH khi vợ sinh con, có giấy tờ xác nhận theo quy định và còn trong thời hạn đề nghị giải quyết chế độ.',
+  paternityLeaveRegistrationProcess: 'CBCS lập đề nghị nghỉ NVS, đính kèm giấy khai sinh/giấy chứng sinh hoặc xác nhận của cơ sở y tế, báo cáo chỉ huy trực tiếp và cập nhật vào hệ thống trước hoặc ngay sau khi phát sinh nghỉ.',
+  paternityLeaveApprovalProcess: 'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ đúng chính sách, trình lãnh đạo duyệt và khóa dữ liệu tháng sau khi hoàn tất.',
+  paternityLeavePayrollPolicy: 'Ngày nghỉ NVS không tính định lượng tuần tra, không phát sinh tiền làm đêm; việc chi trả chế độ thực hiện theo hồ sơ BHXH và quy định hiện hành.',
+  paternityLeaveAttendancePolicy: 'Ngày NVS được chấm ký hiệu NVS trên bảng công, ưu tiên ghi đè lịch tuần tra nếu có khai báo thủ công cùng ngày để bảo đảm đúng chính sách.',
 };
 
 export const initialOfficers: Officer[] = [];

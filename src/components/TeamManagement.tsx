@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Officer, Team } from '../types';
 import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface TeamManagementProps {
   teams: Team[];
@@ -19,11 +20,13 @@ export default function TeamManagement({ teams, setTeams, officers, addLog }: Te
   const [leaderId, setLeaderId] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
+  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
+
   const handleOpenAdd = () => {
     setEditingTeam(null);
     setName('');
     // Select first working officer as default leader candidates
-    const activeOfficers = officers.filter(o => o.status === 'Đang công tác');
+    const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
     setLeaderId(activeOfficers[0]?.id || '');
     setMemberIds([]);
     setShowModal(true);
@@ -95,7 +98,7 @@ export default function TeamManagement({ teams, setTeams, officers, addLog }: Te
     setShowModal(false);
   };
 
-  const activeOfficers = officers.filter(o => o.status === 'Đang công tác');
+  const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
 
   return (
     <div className="space-y-6">

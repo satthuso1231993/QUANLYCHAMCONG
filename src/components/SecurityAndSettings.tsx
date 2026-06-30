@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SystemSettings, AuditLog, User, Officer, UserRole, OvernightShiftAttendanceMode } from '../types';
 import { getSQLiteSchema } from '../utils/helpers';
 import { Settings, Shield, Lock, FileText, Database, Check, History, Save, RefreshCw, AlertTriangle, Download, ArrowUp, Users, Trash2, Edit2, Plus } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface SecurityAndSettingsProps {
   settings: SystemSettings;
@@ -32,6 +33,7 @@ export default function SecurityAndSettings({
   setUsers,
   officers,
 }: SecurityAndSettingsProps) {
+  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
   const [activeTab, setActiveTab] = useState<'rates' | 'password' | 'logs' | 'backup' | 'accounts'>('rates');
   const [deleteUserConfirm, setDeleteUserConfirm] = useState<{ id: string; name: string; usernameStr: string } | null>(null);
   const [logSearch, setLogSearch] = useState('');
@@ -51,6 +53,7 @@ export default function SecurityAndSettings({
   const [symbolMission, setSymbolMission] = useState(settings.symbolMission || 'Ct');
   const [symbolStudy, setSymbolStudy] = useState(settings.symbolStudy || 'H');
   const [symbolLeave, setSymbolLeave] = useState(settings.symbolLeave || 'P');
+  const [symbolPaternityLeave, setSymbolPaternityLeave] = useState(settings.symbolPaternityLeave || 'NVS');
   const [symbolCompensation, setSymbolCompensation] = useState(settings.symbolCompensation || 'Nb');
   const [symbolMaternity, setSymbolMaternity] = useState(settings.symbolMaternity || 'Ts');
   const [symbolRest, setSymbolRest] = useState(settings.symbolRest || 'Nd');
@@ -67,6 +70,27 @@ export default function SecurityAndSettings({
   const [signerLeaderSubTitle, setSignerLeaderSubTitle] = useState(settings.signerLeaderSubTitle || 'PHÓ TRƯỞNG PHÒNG');
   const [signerLeaderSealTitle, setSignerLeaderSealTitle] = useState(settings.signerLeaderSealTitle || 'TRƯỞNG PHÒNG CSGT');
   const [maxNightShiftCompensationTurns, setMaxNightShiftCompensationTurns] = useState(settings.maxNightShiftCompensationTurns || 10);
+  const [paternityLeaveMaxDays, setPaternityLeaveMaxDays] = useState(settings.paternityLeaveMaxDays || 14);
+  const [paternityLeaveEligibility, setPaternityLeaveEligibility] = useState(
+    settings.paternityLeaveEligibility ||
+      'Áp dụng cho CBCS nam đang tham gia BHXH khi vợ sinh con, có đủ hồ sơ chứng minh theo quy định.'
+  );
+  const [paternityLeaveRegistrationProcess, setPaternityLeaveRegistrationProcess] = useState(
+    settings.paternityLeaveRegistrationProcess ||
+      'CBCS lập đề nghị nghỉ NVS, cập nhật hệ thống và nộp giấy tờ xác nhận cho chỉ huy trực tiếp.'
+  );
+  const [paternityLeaveApprovalProcess, setPaternityLeaveApprovalProcess] = useState(
+    settings.paternityLeaveApprovalProcess ||
+      'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ và trình lãnh đạo phê duyệt trước khi khóa tháng.'
+  );
+  const [paternityLeavePayrollPolicy, setPaternityLeavePayrollPolicy] = useState(
+    settings.paternityLeavePayrollPolicy ||
+      'Ngày nghỉ NVS không tính định lượng tuần tra, không phát sinh tiền làm đêm; chế độ chi trả thực hiện theo hồ sơ BHXH.'
+  );
+  const [paternityLeaveAttendancePolicy, setPaternityLeaveAttendancePolicy] = useState(
+    settings.paternityLeaveAttendancePolicy ||
+      'Ngày NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu cùng ngày có khai báo nghỉ thủ công.'
+  );
 
   // Password fields
   const [oldPassword, setOldPassword] = useState('');
@@ -262,6 +286,7 @@ export default function SecurityAndSettings({
       symbolMission,
       symbolStudy,
       symbolLeave,
+      symbolPaternityLeave,
       symbolCompensation,
       symbolMaternity,
       symbolRest,
@@ -276,10 +301,16 @@ export default function SecurityAndSettings({
       signerLeaderSubTitle,
       signerLeaderSealTitle,
       maxNightShiftCompensationTurns,
+      paternityLeaveMaxDays,
+      paternityLeaveEligibility,
+      paternityLeaveRegistrationProcess,
+      paternityLeaveApprovalProcess,
+      paternityLeavePayrollPolicy,
+      paternityLeaveAttendancePolicy,
     });
     addLog(
       'Thay đổi cấu hình',
-      `Cập nhật mức định lượng: ${rationRate.toLocaleString()}đ, mức làm đêm: ${nightShiftRate.toLocaleString()}đ, số lượt tối đa hưởng làm đêm: ${maxNightShiftCompensationTurns}, phương án tính ca qua đêm: ${overnightShiftAttendanceMode === 'standard' ? 'Tính chuẩn' : overnightShiftAttendanceMode === 'overnight_only_next_day' ? 'Chỉ tính cho ngày hôm sau' : 'Chia 0.5-0.5 (<=22:00 và >02:00)'}, các ký hiệu chấm công và thông tin người ký phê duyệt.`
+      `Cập nhật mức định lượng: ${rationRate.toLocaleString()}đ, mức làm đêm: ${nightShiftRate.toLocaleString()}đ, số lượt tối đa hưởng làm đêm: ${maxNightShiftCompensationTurns}, cấu hình nghỉ vợ sinh tối đa ${paternityLeaveMaxDays} ngày, phương án tính ca qua đêm: ${overnightShiftAttendanceMode === 'standard' ? 'Tính chuẩn' : overnightShiftAttendanceMode === 'overnight_only_next_day' ? 'Chỉ tính cho ngày hôm sau' : 'Chia 0.5-0.5 (<=22:00 và >02:00)'}, các ký hiệu chấm công và thông tin người ký phê duyệt.`
     );
     alert('Cập nhật cấu hình hệ thống thành công!');
   };
@@ -502,6 +533,83 @@ export default function SecurityAndSettings({
                     </span>
                   </div>
                 </div>
+
+                <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cấu hình chế độ nghỉ vợ sinh (NVS)</h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Thiết lập điều kiện áp dụng, giới hạn ngày nghỉ, quy trình và cách liên kết với chấm công - tiền lương để bảo đảm đúng chính sách.
+                      </p>
+                    </div>
+                    <div className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-wider">
+                      Ký hiệu chuẩn: {symbolPaternityLeave || 'NVS'}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Số ngày nghỉ NVS tối đa *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    required
+                    value={paternityLeaveMaxDays}
+                    onChange={(e) => setPaternityLeaveMaxDays(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-mono outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nguyên tắc chấm công NVS</label>
+                  <input
+                    type="text"
+                    value={paternityLeaveAttendancePolicy}
+                    onChange={(e) => setPaternityLeaveAttendancePolicy(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Điều kiện áp dụng NVS</label>
+                  <textarea
+                    rows={2}
+                    value={paternityLeaveEligibility}
+                    onChange={(e) => setPaternityLeaveEligibility(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Quy trình đăng ký NVS</label>
+                  <textarea
+                    rows={2}
+                    value={paternityLeaveRegistrationProcess}
+                    onChange={(e) => setPaternityLeaveRegistrationProcess(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Quy trình phê duyệt NVS</label>
+                  <textarea
+                    rows={2}
+                    value={paternityLeaveApprovalProcess}
+                    onChange={(e) => setPaternityLeaveApprovalProcess(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Liên kết với module lương/BHXH</label>
+                  <textarea
+                    rows={2}
+                    value={paternityLeavePayrollPolicy}
+                    onChange={(e) => setPaternityLeavePayrollPolicy(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
               </div>
 
               {/* Custom symbols grid */}
@@ -549,6 +657,17 @@ export default function SecurityAndSettings({
                       maxLength={5}
                       value={symbolLeave}
                       onChange={(e) => setSymbolLeave(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs text-center font-bold font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nghỉ vợ sinh (NVS)</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={5}
+                      value={symbolPaternityLeave}
+                      onChange={(e) => setSymbolPaternityLeave(e.target.value.toUpperCase())}
                       className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs text-center font-bold font-mono"
                     />
                   </div>
@@ -1053,7 +1172,7 @@ export default function SecurityAndSettings({
                         className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                       >
                         <option value="">--- Không liên kết (Không bắt buộc) ---</option>
-                        {officers.filter(o => o.status === 'Đang công tác').map(o => (
+                        {fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác').map(o => (
                           <option key={o.id} value={o.id}>
                             {o.rank} - {o.fullName} ({o.badgeNumber})
                           </option>

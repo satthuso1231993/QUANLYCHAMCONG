@@ -654,6 +654,7 @@ export default function App() {
                 setAttendance={setAttendance} 
                 officers={officers} 
                 approvals={approvals}
+                settings={settings}
                 addLog={addLog} 
                 currentUser={currentUser}
               />

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Officer, Team, PatrolSchedule, MissionType, Approval, User, SystemSettings } from '../types';
 import { isNightShift, formatDateDmy } from '../utils/helpers';
 import { Plus, Calendar, Clock, MapPin, Tag, Shield, FileText, Edit2, Trash2, X, Lock, CheckCircle, HelpCircle, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface PatrolSchedulesProps {
   schedules: PatrolSchedule[];
@@ -26,6 +27,7 @@ export default function PatrolSchedules({
   syncAutoCalculations,
   currentUser,
 }: PatrolSchedulesProps) {
+  const fixedPersonnelOfficers = useMemo(() => getFixedPersonnelOfficers(officers), [officers]);
   const [showModal, setShowModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<PatrolSchedule | null>(null);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -893,7 +895,7 @@ export default function PatrolSchedules({
                       />
 
                       <div className="max-h-[140px] overflow-y-auto border border-slate-200 rounded-md bg-white divide-y divide-slate-100 p-1">
-                        {officers.filter(o => {
+                        {fixedPersonnelOfficers.filter(o => {
                           if (o.status !== 'Đang công tác') return false;
                           if (!searchVal) return true;
                           const query = searchVal.toLowerCase();
@@ -901,7 +903,7 @@ export default function PatrolSchedules({
                         }).length === 0 ? (
                           <div className="text-[10px] text-slate-400 text-center py-4">Không tìm thấy cán bộ phù hợp</div>
                         ) : (
-                          officers.filter(o => {
+                          fixedPersonnelOfficers.filter(o => {
                             if (o.status !== 'Đang công tác') return false;
                             if (!searchVal) return true;
                             const query = searchVal.toLowerCase();

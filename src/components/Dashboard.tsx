@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Officer, PatrolSchedule, Attendance, RationRecord, NightShiftRecord, Team } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { Users, Calendar, Shield, Moon, DollarSign, Award, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface DashboardProps {
   officers: Officer[];
@@ -22,6 +23,7 @@ export default function Dashboard({
 }: DashboardProps) {
   const [selectedMonth, setSelectedMonth] = useState<string>('all'); // 'all', '2026-05', '2026-06'
   const [selectedOfficer, setSelectedOfficer] = useState<string>('all');
+  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
 
   // Filter helper
   const filterByMonthAndOfficer = (recordDate: string, recordOfficerId: string) => {
@@ -31,7 +33,7 @@ export default function Dashboard({
   };
 
   // Calculations
-  const activeOfficers = officers.filter(o => o.status === 'Đang công tác').length;
+  const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác').length;
   
   const filteredAttendance = attendance.filter(a => filterByMonthAndOfficer(a.date, a.officerId));
   const filteredRations = rations.filter(r => filterByMonthAndOfficer(r.date, r.officerId));
@@ -115,7 +117,7 @@ export default function Dashboard({
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 max-w-[200px] outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               <option value="all">Tất cả cán bộ</option>
-              {officers.map(o => (
+              {fixedPersonnelOfficers.map(o => (
                 <option key={o.id} value={o.id}>
                   {o.rank} {o.fullName} ({o.badgeNumber})
                 </option>
