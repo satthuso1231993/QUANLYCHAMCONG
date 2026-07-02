@@ -322,16 +322,29 @@ export default function SecurityAndSettings({
       alert('Vui lòng điền đầy đủ thông tin mật khẩu!');
       return;
     }
-    if (oldPassword !== '123456') {
-      alert('Mật khẩu hiện tại không hợp lệ! Mật khẩu mặc định là 123456.');
-      return;
-    }
     if (newPassword !== confirmPassword) {
       alert('Mật khẩu mới và mật khẩu xác nhận không trùng khớp!');
       return;
     }
+
+    const currentUserRow = users.find((u) => u.id === currentUser.id);
+    if (!currentUserRow) {
+      alert('Không tìm thấy tài khoản đang đăng nhập trên Supabase. Vui lòng tải lại trang.');
+      return;
+    }
+
+    if ((currentUserRow.password || '') !== oldPassword) {
+      alert('Mật khẩu hiện tại không chính xác!');
+      return;
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? { ...u, password: newPassword } : u))
+    );
+    setCurrentUser((prev) => ({ ...prev, password: newPassword }));
+
     setPasswordSuccess('Đổi mật khẩu thành công! Hãy ghi nhớ mật khẩu mới để đăng nhập ở những lần tiếp theo.');
-    addLog('Đổi mật khẩu', `Tài khoản '${currentUser.username}' đổi mật khẩu quản trị thành công.`);
+    addLog('Đổi mật khẩu', `Tài khoản '${currentUser.username}' đã đổi mật khẩu thành công trên Supabase.`);
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');

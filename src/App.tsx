@@ -312,7 +312,7 @@ export default function App() {
     e.preventDefault();
     const matchedUser = users.find(
       u => u.username.toLowerCase() === loginUsername.trim().toLowerCase() && 
-      (u.password === loginPassword || (u.username === 'admin' && loginPassword === '123456'))
+      (u.password || '') === loginPassword
     );
 
     if (matchedUser) {
@@ -321,7 +321,7 @@ export default function App() {
       setLoginError('');
       addLog('Đăng nhập hệ thống', `Đã đăng nhập thành công vào hệ thống với tài khoản '${matchedUser.username}' (${matchedUser.fullName}).`, matchedUser);
     } else {
-      setLoginError('Tài khoản hoặc mật khẩu không chính xác! (Mật khẩu mặc định là 123, tài khoản admin là 123456 hoặc mật khẩu cụ thể của bạn)');
+      setLoginError('Tài khoản hoặc mật khẩu không chính xác!');
     }
   };
 
@@ -484,7 +484,7 @@ export default function App() {
                   required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu... (123456)"
+                  placeholder="Nhập mật khẩu..."
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 text-white rounded-lg text-xs outline-hidden"
                 />
               </div>
@@ -500,8 +500,7 @@ export default function App() {
 
           {/* Credentials guideline */}
           <div className="text-center pt-2 border-t border-slate-800 text-[10.5px] text-slate-400">
-            <p>Tài khoản dùng thử mặc định:</p>
-            <p className="mt-1">Tên đăng nhập: <strong className="text-yellow-400 font-bold">admin</strong> / Mật gót: <strong className="text-yellow-400 font-bold">123456</strong></p>
+            <p>Tài khoản và mật khẩu được lấy từ Supabase.</p>
           </div>
         </div>
       </div>

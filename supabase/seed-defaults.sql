@@ -101,7 +101,7 @@ set
 
 insert into public.users (id, username, password, role, full_name, officer_id)
 values
-  ('U001', 'admin', '123', 'admin', 'Quản trị viên Hệ thống', null),
+  ('U001', 'admin', '123456', 'admin', 'Quản trị viên Hệ thống', null),
   ('U002', 'lanhdao', '123', 'leader', 'Lãnh đạo Đội Đinh Văn A', null),
   ('U003', 'chihuy', '123', 'commander', 'Chỉ huy Trực Vương Tuấn B', null),
   ('U004', 'totruong', '123', 'team_leader', 'Tổ trưởng Đinh Trọng C', null),
