@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Officer, PatrolSchedule, Attendance, RationRecord, NightShiftRecord, Team } from '../types';
+import { Attendance, NightShiftRecord, Officer, PatrolSchedule, RationRecord, SystemSettings, Team } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { Users, Calendar, Shield, Moon, DollarSign, Award, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
@@ -11,6 +11,7 @@ interface DashboardProps {
   rations: RationRecord[];
   nightShifts: NightShiftRecord[];
   teams?: Team[];
+  settings: SystemSettings;
 }
 
 export default function Dashboard({
@@ -20,6 +21,7 @@ export default function Dashboard({
   rations,
   nightShifts,
   teams = [],
+  settings,
 }: DashboardProps) {
   const [selectedMonth, setSelectedMonth] = useState<string>('all'); // 'all', '2026-05', '2026-06'
   const [selectedOfficer, setSelectedOfficer] = useState<string>('all');
@@ -90,7 +92,9 @@ export default function Dashboard({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight">Trang chủ Thống kê Bento</h2>
-          <p className="text-xs text-slate-500 mt-1">Đồng bộ tự động dữ liệu Chấm công - Định lượng - Làm đêm Phòng CSGT</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Đồng bộ tự động dữ liệu Chấm công - Định lượng - Làm đêm {settings.departmentName || ''}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

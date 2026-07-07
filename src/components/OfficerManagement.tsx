@@ -1,15 +1,16 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Officer, OfficerRank, OfficerPosition, AuditLog } from '../types';
+import { AuditLog, Officer, OfficerPosition, OfficerRank, SystemSettings } from '../types';
 import { Plus, Search, Edit2, Trash2, Upload, FileSpreadsheet, Check, X, AlertCircle } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface OfficerManagementProps {
   officers: Officer[];
   setOfficers: React.Dispatch<React.SetStateAction<Officer[]>>;
+  settings: SystemSettings;
   addLog: (action: string, details: string) => void;
 }
 
-export default function OfficerManagement({ officers, setOfficers, addLog }: OfficerManagementProps) {
+export default function OfficerManagement({ officers, setOfficers, settings, addLog }: OfficerManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingOfficer, setEditingOfficer] = useState<Officer | null>(null);
@@ -336,7 +337,7 @@ export default function OfficerManagement({ officers, setOfficers, addLog }: Off
         </div>
         <div className="bg-slate-50 p-3.5 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
           <span>Hiển thị {filteredOfficers.length} trên tổng số {fixedPersonnelOfficers.length} nhân sự cố định</span>
-          <span className="font-semibold text-slate-600">Đơn vị: Phòng Cảnh sát giao thông</span>
+          <span className="font-semibold text-slate-600">Đơn vị: {settings.departmentName || 'Phòng Cảnh sát giao thông'}</span>
         </div>
       </div>
 

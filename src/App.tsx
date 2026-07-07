@@ -613,6 +613,7 @@ export default function App() {
                 rations={rations} 
                 nightShifts={nightShifts} 
                 teams={teams}
+                settings={settings}
               />
             )}
 
@@ -620,6 +621,7 @@ export default function App() {
               <OfficerManagement 
                 officers={officers} 
                 setOfficers={setOfficers} 
+                settings={settings}
                 addLog={addLog} 
               />
             )}
@@ -629,6 +631,7 @@ export default function App() {
                 teams={teams} 
                 setTeams={setTeams} 
                 officers={officers} 
+                settings={settings}
                 addLog={addLog} 
               />
             )}

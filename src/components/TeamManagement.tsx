@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Officer, Team } from '../types';
+import { Officer, SystemSettings, Team } from '../types';
 import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
@@ -7,10 +7,11 @@ interface TeamManagementProps {
   teams: Team[];
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
   officers: Officer[];
+  settings: SystemSettings;
   addLog: (action: string, details: string) => void;
 }
 
-export default function TeamManagement({ teams, setTeams, officers, addLog }: TeamManagementProps) {
+export default function TeamManagement({ teams, setTeams, officers, settings, addLog }: TeamManagementProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -222,7 +223,7 @@ export default function TeamManagement({ teams, setTeams, officers, addLog }: Te
                 {/* Footer status */}
                 <div className="px-5 py-3 bg-slate-50 text-[11px] text-slate-500 border-t border-slate-100 flex items-center justify-between">
                   <span>Trạng thái: Hoạt động</span>
-                  <span className="font-semibold text-slate-600">Phòng CSGT Lâm Đồng</span>
+                  <span className="font-semibold text-slate-600">{settings.departmentName || 'Phòng CSGT'}</span>
                 </div>
               </div>
             );
