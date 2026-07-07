@@ -120,6 +120,18 @@ export default function SecurityAndSettings({
       roleInput === 'doi' ? (team.teamType || 'doi') === 'doi' : (team.teamType || 'doi') === 'to_dia_ban',
     );
   }, [roleInput, selectableTeams]);
+  const selectedManagedTeam = React.useMemo(
+    () => teams.find((team) => team.id === managedTeamIdInput),
+    [managedTeamIdInput, teams],
+  );
+  const subordinateTeamsPreview = React.useMemo(() => {
+    if (roleInput !== 'doi' || !managedTeamIdInput) {
+      return [];
+    }
+    return teams
+      .filter((team) => team.parentTeamId === managedTeamIdInput && (team.teamType || 'doi') === 'to_dia_ban')
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [managedTeamIdInput, roleInput, teams]);
 
   // Handle Create or Edit User Account
   const handleSaveAccount = (e: React.FormEvent) => {
@@ -143,7 +155,6 @@ export default function SecurityAndSettings({
       return;
     }
 
-    const selectedManagedTeam = teams.find((team) => team.id === managedTeamIdInput);
     if (roleInput === 'doi' && selectedManagedTeam && (selectedManagedTeam.teamType || 'doi') !== 'doi') {
       setAccountError('Tài khoản cấp Đội chỉ được gán cho một đơn vị cấp Đội!');
       return;
@@ -1247,6 +1258,36 @@ export default function SecurityAndSettings({
                       )}
                     </div>
 
+                    {roleInput === 'doi' && managedTeamIdInput && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                          Cấu trúc quản lý của tài khoản Đội
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-emerald-900">
+                          Đội phụ trách: {selectedManagedTeam?.name || 'Chưa xác định'}
+                        </div>
+                        <div className="mt-2 text-[11px] text-emerald-900">
+                          Tổ địa bàn trực thuộc: {subordinateTeamsPreview.length}
+                        </div>
+                        {subordinateTeamsPreview.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {subordinateTeamsPreview.map((team) => (
+                              <span
+                                key={team.id}
+                                className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-800"
+                              >
+                                {team.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[10px] text-amber-700">
+                            Đội này hiện chưa có Tổ địa bàn trực thuộc. Hãy khai báo trong phần cơ cấu tổ đội nếu cần.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">Cán bộ liên kết danh tính</label>
                       <select
@@ -1307,6 +1348,15 @@ export default function SecurityAndSettings({
                           const linkedOfficer = officers.find(o => o.id === u.officerId);
                           
                           const managedTeam = teams.find((team) => team.id === u.managedTeamId);
+                          const managedSubordinateTeams =
+                            u.role === 'doi' && u.managedTeamId
+                              ? teams
+                                  .filter(
+                                    (team) =>
+                                      team.parentTeamId === u.managedTeamId && (team.teamType || 'doi') === 'to_dia_ban',
+                                  )
+                                  .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+                              : [];
                           let roleBadgeColor = 'bg-blue-50 text-blue-700 border border-blue-100';
                           if (u.role === 'admin') {
                             roleBadgeColor = 'bg-rose-50 text-rose-700 border border-rose-100';
@@ -1329,6 +1379,14 @@ export default function SecurityAndSettings({
                                   <span className="block mt-1 text-[10px] text-slate-500">
                                     Phạm vi: {managedTeam.name} ({getTeamTypeLabel(managedTeam.teamType)})
                                   </span>
+                                )}
+                                {u.role === 'doi' && (
+                                  <div className="mt-1 text-[10px] text-slate-500">
+                                    Quản lý tổ địa bàn:{' '}
+                                    {managedSubordinateTeams.length > 0
+                                      ? managedSubordinateTeams.map((team) => team.name).join(', ')
+                                      : 'Chưa có tổ địa bàn trực thuộc'}
+                                  </div>
                                 )}
                               </td>
                               <td className="py-3 px-3 text-[11px] text-slate-600">
