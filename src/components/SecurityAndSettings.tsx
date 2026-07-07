@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { SystemSettings, AuditLog, User, Officer, UserRole, OvernightShiftAttendanceMode } from '../types';
+import { SystemSettings, AuditLog, User, Officer, UserRole, OvernightShiftAttendanceMode, Team } from '../types';
+import { getTeamTypeLabel, getUserRoleLabel } from '../utils/accessScope';
 import { getSQLiteSchema } from '../utils/helpers';
 import { Settings, Shield, Lock, FileText, Database, Check, History, Save, RefreshCw, AlertTriangle, Download, ArrowUp, Users, Trash2, Edit2, Plus } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
@@ -17,6 +18,7 @@ interface SecurityAndSettingsProps {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   officers: Officer[];
+  teams: Team[];
 }
 
 export default function SecurityAndSettings({
@@ -32,8 +34,10 @@ export default function SecurityAndSettings({
   users,
   setUsers,
   officers,
+  teams,
 }: SecurityAndSettingsProps) {
   const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
+  const selectableTeams = React.useMemo(() => teams.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')), [teams]);
   const [activeTab, setActiveTab] = useState<'rates' | 'password' | 'logs' | 'backup' | 'accounts'>('rates');
   const [deleteUserConfirm, setDeleteUserConfirm] = useState<{ id: string; name: string; usernameStr: string } | null>(null);
   const [logSearch, setLogSearch] = useState('');
@@ -103,10 +107,19 @@ export default function SecurityAndSettings({
   const [usernameInput, setUsernameInput] = useState('');
   const [fullNameInput, setFullNameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-  const [roleInput, setRoleInput] = useState<UserRole>('officer_self');
+  const [roleInput, setRoleInput] = useState<UserRole>('to_dia_ban');
   const [linkedOfficerIdState, setLinkedOfficerIdState] = useState('');
+  const [managedTeamIdInput, setManagedTeamIdInput] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSuccess, setAccountSuccess] = useState('');
+  const assignableTeams = React.useMemo(() => {
+    if (roleInput === 'admin') {
+      return selectableTeams;
+    }
+    return selectableTeams.filter((team) =>
+      roleInput === 'doi' ? (team.teamType || 'doi') === 'doi' : (team.teamType || 'doi') === 'to_dia_ban',
+    );
+  }, [roleInput, selectableTeams]);
 
   // Handle Create or Edit User Account
   const handleSaveAccount = (e: React.FormEvent) => {
@@ -122,6 +135,21 @@ export default function SecurityAndSettings({
 
     if (!fullNameInput.trim()) {
       setAccountError('Họ và tên không được để trống!');
+      return;
+    }
+
+    if (roleInput !== 'admin' && !managedTeamIdInput) {
+      setAccountError('Tài khoản cấp Đội/Tổ địa bàn phải được gán phạm vi quản lý!');
+      return;
+    }
+
+    const selectedManagedTeam = teams.find((team) => team.id === managedTeamIdInput);
+    if (roleInput === 'doi' && selectedManagedTeam && (selectedManagedTeam.teamType || 'doi') !== 'doi') {
+      setAccountError('Tài khoản cấp Đội chỉ được gán cho một đơn vị cấp Đội!');
+      return;
+    }
+    if (roleInput === 'to_dia_ban' && selectedManagedTeam && (selectedManagedTeam.teamType || 'doi') !== 'to_dia_ban') {
+      setAccountError('Tài khoản Tổ địa bàn chỉ được gán cho một Tổ địa bàn!');
       return;
     }
 
@@ -151,6 +179,7 @@ export default function SecurityAndSettings({
             password: passwordInput ? passwordInput : u.password,
             role: roleInput,
             officerId: linkedOfficerIdState || undefined,
+            managedTeamId: roleInput === 'admin' ? undefined : managedTeamIdInput || undefined,
           };
         }
         return u;
@@ -166,6 +195,7 @@ export default function SecurityAndSettings({
         role: roleInput,
         fullName: fullNameInput.trim(),
         officerId: linkedOfficerIdState || undefined,
+        managedTeamId: roleInput === 'admin' ? undefined : managedTeamIdInput || undefined,
       };
       updatedUsersList = [...users, newUser];
       addLog('Tạo tài khoản mới', `Đã tạo tài khoản công vụ mới '${formattedUsername}' cấp quyền: ${roleInput}.`);
@@ -179,8 +209,9 @@ export default function SecurityAndSettings({
     setUsernameInput('');
     setFullNameInput('');
     setPasswordInput('');
-    setRoleInput('officer_self');
+    setRoleInput('to_dia_ban');
     setLinkedOfficerIdState('');
+    setManagedTeamIdInput('');
 
     setTimeout(() => {
       setAccountSuccess('');
@@ -195,6 +226,7 @@ export default function SecurityAndSettings({
     setPasswordInput(u.password || '');
     setRoleInput(u.role);
     setLinkedOfficerIdState(u.officerId || '');
+    setManagedTeamIdInput(u.managedTeamId || '');
     setAccountError('');
     setAccountSuccess('');
   };
@@ -228,8 +260,9 @@ export default function SecurityAndSettings({
     setUsernameInput('');
     setFullNameInput('');
     setPasswordInput('');
-    setRoleInput('officer_self');
+    setRoleInput('to_dia_ban');
     setLinkedOfficerIdState('');
+    setManagedTeamIdInput('');
     setAccountError('');
   };
 
@@ -239,6 +272,19 @@ export default function SecurityAndSettings({
       setActiveTab('rates');
     }
   }, [activeTab, currentUser.role]);
+
+  React.useEffect(() => {
+    if (roleInput === 'admin') {
+      if (managedTeamIdInput) {
+        setManagedTeamIdInput('');
+      }
+      return;
+    }
+
+    if (managedTeamIdInput && !assignableTeams.some((team) => team.id === managedTeamIdInput)) {
+      setManagedTeamIdInput('');
+    }
+  }, [assignableTeams, managedTeamIdInput, roleInput]);
 
   const getLogCategory = (action: string) => {
     if (action.includes('Đăng nhập') || action.includes('Đăng xuất')) return 'login';
@@ -1170,11 +1216,35 @@ export default function SecurityAndSettings({
                         className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                       >
                         <option value="admin">Quản trị tối cao (Admin)</option>
-                        <option value="leader">Lãnh đạo Đội/Phòng (Leader)</option>
-                        <option value="commander">Trực chỉ huy (Commander)</option>
-                        <option value="team_leader">Tổ trưởng tuần tra (Team Leader)</option>
-                        <option value="officer_self">Cán bộ chiến sĩ tự chấm (Self-attendance Officer)</option>
+                        <option value="doi">Tài khoản cấp Đội</option>
+                        <option value="to_dia_ban">Tài khoản Tổ địa bàn</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Phạm vi quản lý tổ đội</label>
+                      <select
+                        value={managedTeamIdInput}
+                        onChange={(e) => setManagedTeamIdInput(e.target.value)}
+                        disabled={roleInput === 'admin'}
+                        className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
+                      >
+                        <option value="">--- Chọn phạm vi quản lý ---</option>
+                        {assignableTeams.map((team) => (
+                          <option key={team.id} value={team.id}>
+                            {team.name} ({getTeamTypeLabel(team.teamType)})
+                          </option>
+                        ))}
+                      </select>
+                      {roleInput !== 'admin' && !managedTeamIdInput && (
+                        <p className="text-[10px] text-amber-600 font-medium mt-1">⚠️ Tài khoản cấp Đội hoặc Tổ địa bàn phải được gán đúng phạm vi để lọc dữ liệu.</p>
+                      )}
+                      {roleInput === 'doi' && (
+                        <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các đơn vị cấp Đội. Tài khoản này sẽ thấy đội được gán và toàn bộ tổ địa bàn trực thuộc.</p>
+                      )}
+                      {roleInput === 'to_dia_ban' && (
+                        <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các Tổ địa bàn. Tài khoản này chỉ được chấm công trong tổ địa bàn được gán.</p>
+                      )}
                     </div>
 
                     <div>
@@ -1191,8 +1261,8 @@ export default function SecurityAndSettings({
                           </option>
                         ))}
                       </select>
-                      {roleInput === 'officer_self' && !linkedOfficerIdState && (
-                        <p className="text-[10px] text-amber-600 font-medium mt-1">⚠️ Cán bộ tự chấm công bắt buộc phải được liên kết danh tính để tự sửa ngày nghỉ của mình!</p>
+                      {!linkedOfficerIdState && (
+                        <p className="text-[10px] text-slate-500 font-medium mt-1">Liên kết danh tính giúp ghi nhật ký thao tác và cá thể hóa phần chữ ký, nhưng không bắt buộc.</p>
                       )}
                     </div>
 
@@ -1236,20 +1306,12 @@ export default function SecurityAndSettings({
                         {users.map(u => {
                           const linkedOfficer = officers.find(o => o.id === u.officerId);
                           
-                          let roleBadgeColor = 'bg-slate-100 text-slate-700';
-                          let roleNameText = 'Cán bộ tự chấm';
+                          const managedTeam = teams.find((team) => team.id === u.managedTeamId);
+                          let roleBadgeColor = 'bg-blue-50 text-blue-700 border border-blue-100';
                           if (u.role === 'admin') {
                             roleBadgeColor = 'bg-rose-50 text-rose-700 border border-rose-100';
-                            roleNameText = 'Quản trị viên';
-                          } else if (u.role === 'leader') {
+                          } else if (u.role === 'doi') {
                             roleBadgeColor = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
-                            roleNameText = 'Lãnh đạo';
-                          } else if (u.role === 'commander') {
-                            roleBadgeColor = 'bg-purple-50 text-purple-700 border border-purple-100';
-                            roleNameText = 'Trực chỉ huy';
-                          } else if (u.role === 'team_leader') {
-                            roleBadgeColor = 'bg-amber-50 text-amber-700 border border-amber-100';
-                            roleNameText = 'Tổ trưởng';
                           }
 
                           return (
@@ -1261,8 +1323,13 @@ export default function SecurityAndSettings({
                               <td className="py-3 px-3">
                                 <span className="block font-semibold text-slate-800">{u.fullName}</span>
                                 <span className={`inline-block mt-1 px-1.5 py-0.2 rounded text-[9px] font-bold ${roleBadgeColor}`}>
-                                  {roleNameText}
+                                  {getUserRoleLabel(u.role)}
                                 </span>
+                                {managedTeam && (
+                                  <span className="block mt-1 text-[10px] text-slate-500">
+                                    Phạm vi: {managedTeam.name} ({getTeamTypeLabel(managedTeam.teamType)})
+                                  </span>
+                                )}
                               </td>
                               <td className="py-3 px-3 text-[11px] text-slate-600">
                                 {linkedOfficer ? (

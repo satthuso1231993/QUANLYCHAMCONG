@@ -143,9 +143,13 @@ export function getSQLiteSchema(): string {
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
+    password TEXT NOT NULL,
     full_name TEXT NOT NULL,
-    role TEXT DEFAULT 'admin'
+    role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'doi', 'to_dia_ban')),
+    officer_id TEXT,
+    managed_team_id TEXT,
+    FOREIGN KEY (officer_id) REFERENCES officers(id),
+    FOREIGN KEY (managed_team_id) REFERENCES teams(id)
 );
 
 -- BẢNG 2: CÁN BỘ CHIẾN SĨ (CBCS)
@@ -164,20 +168,15 @@ CREATE TABLE IF NOT EXISTS officers (
 CREATE TABLE IF NOT EXISTS teams (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
+    team_type TEXT NOT NULL DEFAULT 'doi' CHECK (team_type IN ('doi', 'to_dia_ban')),
+    parent_team_id TEXT,
     leader_id TEXT NOT NULL,
-    FOREIGN KEY (leader_id) REFERENCES officers(id)
+    member_ids TEXT NOT NULL DEFAULT '[]',
+    FOREIGN KEY (leader_id) REFERENCES officers(id),
+    FOREIGN KEY (parent_team_id) REFERENCES teams(id)
 );
 
--- BẢNG 4: THÀNH VIÊN TỔ TUẦN TRA
-CREATE TABLE IF NOT EXISTS team_members (
-    team_id TEXT NOT NULL,
-    officer_id TEXT NOT NULL,
-    PRIMARY KEY (team_id, officer_id),
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY (officer_id) REFERENCES officers(id) ON DELETE CASCADE
-);
-
--- BẢNG 5: LỊCH TUẦN TRA KIỂM SOÁT (BẢNG TRUNG TÂM)
+-- BẢNG 4: LỊCH TUẦN TRA KIỂM SOÁT (BẢNG TRUNG TÂM)
 CREATE TABLE IF NOT EXISTS patrol_schedules (
     id TEXT PRIMARY KEY,
     date TEXT NOT NULL,          -- Định dạng YYYY-MM-DD
@@ -187,13 +186,14 @@ CREATE TABLE IF NOT EXISTS patrol_schedules (
     area TEXT NOT NULL,          -- Địa bàn kiểm soát
     topic TEXT NOT NULL,         -- Chuyên đề thực hiện
     mission_type TEXT NOT NULL,  -- Loại nhiệm vụ
-    team_id TEXT NOT NULL,       -- Tổ tuần tra thực hiện
+    team_id TEXT,                -- Đội/Tổ tuần tra thực hiện
+    custom_officer_ids TEXT,     -- JSON danh sách CBCS nếu phân công cá nhân
     notes TEXT,
     status TEXT DEFAULT 'Bản nháp', -- Bản nháp, Đã ban hành
     FOREIGN KEY (team_id) REFERENCES teams(id)
 );
 
--- BẢNG 6: DỮ LIỆU CHẤM CÔNG (CHI TIẾT)
+-- BẢNG 5: DỮ LIỆU CHẤM CÔNG (CHI TIẾT)
 CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
     officer_id TEXT NOT NULL,
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS attendance (
     FOREIGN KEY (source_schedule_id) REFERENCES patrol_schedules(id) ON DELETE SET NULL
 );
 
--- BẢNG 7: DỮ LIỆU ĐỊNH LƯỢNG (PHỤ CẤP ĂN)
+-- BẢNG 6: DỮ LIỆU ĐỊNH LƯỢNG (PHỤ CẤP ĂN)
 CREATE TABLE IF NOT EXISTS ration_records (
     id TEXT PRIMARY KEY,
     officer_id TEXT NOT NULL,
@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS ration_records (
     FOREIGN KEY (schedule_id) REFERENCES patrol_schedules(id) ON DELETE CASCADE
 );
 
--- BẢNG 8: DỮ LIỆU LÀM ĐÊM
+-- BẢNG 7: DỮ LIỆU LÀM ĐÊM
 CREATE TABLE IF NOT EXISTS night_shift_records (
     id TEXT PRIMARY KEY,
     officer_id TEXT NOT NULL,
@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS night_shift_records (
     FOREIGN KEY (schedule_id) REFERENCES patrol_schedules(id) ON DELETE CASCADE
 );
 
--- BẢNG 9: PHÊ DUYỆT KHÓA DỮ LIỆU THÁNG
+-- BẢNG 8: PHÊ DUYỆT KHÓA DỮ LIỆU THÁNG
 CREATE TABLE IF NOT EXISTS approvals (
     id TEXT PRIMARY KEY,
     month_string TEXT UNIQUE NOT NULL, -- Định dạng YYYY-MM
@@ -238,7 +238,7 @@ CREATE TABLE IF NOT EXISTS approvals (
     approved_at TEXT NOT NULL
 );
 
--- BẢNG 10: NHẬT KÝ HỆ THỐNG
+-- BẢNG 9: NHẬT KÝ HỆ THỐNG
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     details TEXT
 );
 
--- BẢNG 11: CẤU HÌNH HỆ THỐNG
+-- BẢNG 10: CẤU HÌNH HỆ THỐNG
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -262,9 +262,8 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('department_name', 'PHÒNG C
 INSERT OR IGNORE INTO settings (key, value) VALUES ('unit_name', 'CÔNG AN TỈNH LÂM ĐỒNG');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('overnight_shift_attendance_mode', 'standard');
 
--- CHÈN TÀI KHOẢN QUẢN TRỊ VIÊN MẶC ĐỊNH (Mật khẩu: 123456)
--- Trong thực tế chúng ta lưu mật khẩu băm, ví dụ bcrypt hay pbkdf2
-INSERT OR IGNORE INTO users (id, username, password_hash, full_name, role) 
+-- CHÈN TÀI KHOẢN QUẢN TRỊ VIÊN MẶC ĐỊNH
+INSERT OR IGNORE INTO users (id, username, password, full_name, role) 
 VALUES ('U001', 'admin', '123456', 'Quản trị viên Hệ thống', 'admin');
 `;
 }

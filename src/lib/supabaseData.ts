@@ -42,6 +42,7 @@ const toUser = (row: any): User => ({
   role: row.role,
   fullName: String(row.full_name),
   officerId: row.officer_id ?? undefined,
+  managedTeamId: row.managed_team_id ?? undefined,
 });
 
 const fromUser = (row: User) => ({
@@ -51,6 +52,7 @@ const fromUser = (row: User) => ({
   role: row.role,
   full_name: row.fullName,
   officer_id: row.officerId ?? null,
+  managed_team_id: row.managedTeamId ?? null,
 });
 
 const toOfficer = (row: any): Officer => ({
@@ -80,6 +82,8 @@ const fromOfficer = (row: Officer) => ({
 const toTeam = (row: any): Team => ({
   id: String(row.id),
   name: String(row.name),
+  teamType: row.team_type === 'to_dia_ban' ? 'to_dia_ban' : 'doi',
+  parentTeamId: row.parent_team_id ?? undefined,
   leaderId: row.leader_id ?? '',
   memberIds: Array.isArray(row.member_ids) ? row.member_ids.map(String) : [],
 });
@@ -87,6 +91,8 @@ const toTeam = (row: any): Team => ({
 const fromTeam = (row: Team) => ({
   id: row.id,
   name: row.name,
+  team_type: row.teamType ?? 'doi',
+  parent_team_id: row.parentTeamId ?? null,
   leader_id: row.leaderId || null,
   member_ids: row.memberIds,
 });

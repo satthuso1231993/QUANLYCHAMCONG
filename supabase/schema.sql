@@ -7,9 +7,10 @@ create table if not exists public.users (
   id text primary key,
   username text not null unique,
   password text not null,
-  role text not null check (role in ('admin', 'leader', 'commander', 'team_leader', 'officer_self')),
+  role text not null check (role in ('admin', 'doi', 'to_dia_ban')),
   full_name text not null,
   officer_id text null,
+  managed_team_id text null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -31,11 +32,82 @@ create table if not exists public.officers (
 create table if not exists public.teams (
   id text primary key,
   name text not null,
+  team_type text not null default 'doi' check (team_type in ('doi', 'to_dia_ban')),
+  parent_team_id text null references public.teams(id) on delete set null,
   leader_id text null references public.officers(id) on delete set null,
   member_ids text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table if exists public.users
+add column if not exists managed_team_id text null references public.teams(id) on delete set null;
+
+alter table if exists public.teams
+add column if not exists team_type text not null default 'doi';
+
+alter table if exists public.teams
+add column if not exists parent_team_id text null references public.teams(id) on delete set null;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'users'
+      and constraint_name = 'users_role_check'
+  ) then
+    alter table public.users drop constraint users_role_check;
+  end if;
+exception
+  when undefined_table then
+    null;
+end;
+$$;
+
+do $$
+begin
+  alter table public.users
+  add constraint users_role_check
+  check (role in ('admin', 'doi', 'to_dia_ban'));
+exception
+  when duplicate_object then
+    null;
+  when undefined_table then
+    null;
+end;
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'teams'
+      and constraint_name = 'teams_team_type_check'
+  ) then
+    alter table public.teams drop constraint teams_team_type_check;
+  end if;
+exception
+  when undefined_table then
+    null;
+end;
+$$;
+
+do $$
+begin
+  alter table public.teams
+  add constraint teams_team_type_check
+  check (team_type in ('doi', 'to_dia_ban'));
+exception
+  when duplicate_object then
+    null;
+  when undefined_table then
+    null;
+end;
+$$;
 
 create table if not exists public.patrol_schedules (
   id text primary key,

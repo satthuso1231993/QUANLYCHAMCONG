@@ -99,17 +99,16 @@ set
   paternity_leave_payroll_policy = excluded.paternity_leave_payroll_policy,
   paternity_leave_attendance_policy = excluded.paternity_leave_attendance_policy;
 
-insert into public.users (id, username, password, role, full_name, officer_id)
+insert into public.users (id, username, password, role, full_name, officer_id, managed_team_id)
 values
-  ('U001', 'admin', '123456', 'admin', 'Quản trị viên Hệ thống', null),
-  ('U002', 'lanhdao', '123', 'leader', 'Lãnh đạo Đội Đinh Văn A', null),
-  ('U003', 'chihuy', '123', 'commander', 'Chỉ huy Trực Vương Tuấn B', null),
-  ('U004', 'totruong', '123', 'team_leader', 'Tổ trưởng Đinh Trọng C', null),
-  ('U005', 'canbo', '123', 'officer_self', 'Cán bộ Nguyễn Văn D', 'OFF_001')
+  ('U001', 'admin', '123456', 'admin', 'Quản trị viên Hệ thống', null, null),
+  ('U002', 'doi01', '123456', 'doi', 'Tài khoản Đội mẫu', null, null),
+  ('U003', 'todia01', '123456', 'to_dia_ban', 'Tài khoản Tổ địa bàn mẫu', null, null)
 on conflict (id) do update
 set
   username = excluded.username,
   password = excluded.password,
   role = excluded.role,
   full_name = excluded.full_name,
-  officer_id = excluded.officer_id;
+  officer_id = excluded.officer_id,
+  managed_team_id = excluded.managed_team_id;

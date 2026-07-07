@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Officer, SystemSettings, Team } from '../types';
 import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square } from 'lucide-react';
+import { getTeamTypeLabel } from '../utils/accessScope';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface TeamManagementProps {
@@ -18,6 +19,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
   // Form fields
   const [name, setName] = useState('');
+  const [teamType, setTeamType] = useState<'doi' | 'to_dia_ban'>('doi');
+  const [parentTeamId, setParentTeamId] = useState('');
   const [leaderId, setLeaderId] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
@@ -26,6 +29,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
   const handleOpenAdd = () => {
     setEditingTeam(null);
     setName('');
+    setTeamType('doi');
+    setParentTeamId('');
     // Select first working officer as default leader candidates
     const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
     setLeaderId(activeOfficers[0]?.id || '');
@@ -36,6 +41,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
   const handleOpenEdit = (team: Team) => {
     setEditingTeam(team);
     setName(team.name);
+    setTeamType(team.teamType || 'doi');
+    setParentTeamId(team.parentTeamId || '');
     setLeaderId(team.leaderId);
     setMemberIds(team.memberIds);
     setShowModal(true);
@@ -70,6 +77,11 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       return;
     }
 
+    if (teamType === 'to_dia_ban' && !parentTeamId) {
+      alert('Tổ địa bàn phải được gán trực thuộc một Đội!');
+      return;
+    }
+
     // Ensure leader is part of the members
     let finalMembers = [...memberIds];
     if (!finalMembers.includes(leaderId)) {
@@ -81,6 +93,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       setTeams(prev => prev.map(t => t.id === editingTeam.id ? {
         ...t,
         name,
+        teamType,
+        parentTeamId: teamType === 'to_dia_ban' ? parentTeamId : undefined,
         leaderId,
         memberIds: finalMembers
       } : t));
@@ -90,6 +104,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       const newTeam: Team = {
         id: `TEAM_${Date.now()}`,
         name,
+        teamType,
+        parentTeamId: teamType === 'to_dia_ban' ? parentTeamId : undefined,
         leaderId,
         memberIds: finalMembers
       };
@@ -143,7 +159,13 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                       <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md">
                         <Users className="w-4 h-4" />
                       </div>
-                      <h3 className="font-bold text-slate-800 text-sm">{team.name}</h3>
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm">{team.name}</h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {getTeamTypeLabel(team.teamType)}
+                          {team.parentTeamId ? ` • Trực thuộc ${teams.find((item) => item.id === team.parentTeamId)?.name || 'Đội chưa xác định'}` : ''}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex gap-1">
@@ -255,6 +277,38 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                   placeholder="VD: Tổ Tuần tra Số 1, Tổ Cơ động..."
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Cấp tổ đội *</label>
+                  <select
+                    value={teamType}
+                    onChange={(e) => setTeamType(e.target.value as 'doi' | 'to_dia_ban')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  >
+                    <option value="doi">Đội</option>
+                    <option value="to_dia_ban">Tổ địa bàn</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Đội trực thuộc</label>
+                  <select
+                    value={parentTeamId}
+                    onChange={(e) => setParentTeamId(e.target.value)}
+                    disabled={teamType !== 'to_dia_ban'}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    <option value="">--- Chọn đội quản lý ---</option>
+                    {teams
+                      .filter((team) => team.id !== editingTeam?.id && (team.teamType || 'doi') === 'doi')
+                      .map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
 
               {/* Chỉ định Tổ trưởng */}

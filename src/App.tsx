@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { 
   User, Officer, Team, PatrolSchedule, Attendance, RationRecord, NightShiftRecord, Approval, AuditLog, SystemSettings 
 } from './types';
@@ -34,6 +34,13 @@ import {
   syncTeamsToSupabase,
   syncUsersToSupabase,
 } from './lib/supabaseData';
+import {
+  filterNightShiftsByScheduleScope,
+  filterRecordsByOfficerScope,
+  filterRationsByScheduleScope,
+  filterSchedulesByScope,
+  resolveUserScope,
+} from './utils/accessScope';
 
 type RemoteAppState = Awaited<ReturnType<typeof loadAppStateFromSupabase>>;
 
@@ -153,17 +160,52 @@ export default function App() {
     [],
   );
   const primaryNavItems = [
-    { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-    { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin', 'leader', 'commander', 'team_leader'] },
-    { id: 'teams', label: 'Tổ tuần tra kiểm soát', shortLabel: 'Tổ đội', icon: ShieldAlert, roles: ['admin', 'leader', 'commander', 'team_leader'] },
-    { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-    { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-    { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'doi', 'to_dia_ban'] },
+    { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin'] },
+    { id: 'teams', label: 'Tổ tuần tra kiểm soát', shortLabel: 'Tổ đội', icon: ShieldAlert, roles: ['admin'] },
+    { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'doi', 'to_dia_ban'] },
+    { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'doi', 'to_dia_ban'] },
+    { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'doi', 'to_dia_ban'] },
   ] as const;
   const systemNavItems = [
-    { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
-    { id: 'guide', label: 'Đóng gói Setup.exe', shortLabel: 'Hướng dẫn', icon: HelpCircle, roles: ['admin', 'leader', 'commander', 'team_leader', 'officer_self'] },
+    { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin'] },
+    { id: 'guide', label: 'Đóng gói Setup.exe', shortLabel: 'Hướng dẫn', icon: HelpCircle, roles: ['admin'] },
   ] as const;
+  const userScope = useMemo(() => resolveUserScope(currentUser, teams), [currentUser, teams]);
+  const scopedTeams = useMemo(
+    () => (userScope.canViewAll ? teams : teams.filter((team) => userScope.allowedTeamIds.includes(team.id))),
+    [teams, userScope],
+  );
+  const scopedOfficers = useMemo(
+    () => (userScope.canViewAll ? officers : officers.filter((officer) => userScope.allowedOfficerIds.includes(officer.id))),
+    [officers, userScope],
+  );
+  const scopedSchedules = useMemo(
+    () =>
+      userScope.canViewAll
+        ? schedules
+        : filterSchedulesByScope(schedules, userScope.allowedTeamIds, userScope.allowedOfficerIds),
+    [schedules, userScope],
+  );
+  const scopedScheduleIds = useMemo(() => scopedSchedules.map((schedule) => schedule.id), [scopedSchedules]);
+  const scopedAttendance = useMemo(
+    () => (userScope.canViewAll ? attendance : filterRecordsByOfficerScope(attendance, userScope.allowedOfficerIds)),
+    [attendance, userScope],
+  );
+  const scopedRations = useMemo(
+    () =>
+      userScope.canViewAll
+        ? rations
+        : filterRationsByScheduleScope(rations, userScope.allowedOfficerIds, scopedScheduleIds),
+    [rations, scopedScheduleIds, userScope],
+  );
+  const scopedNightShifts = useMemo(
+    () =>
+      userScope.canViewAll
+        ? nightShifts
+        : filterNightShiftsByScheduleScope(nightShifts, userScope.allowedOfficerIds, scopedScheduleIds),
+    [nightShifts, scopedScheduleIds, userScope],
+  );
   const visiblePrimaryNavItems = primaryNavItems.filter((menu) => menu.roles.includes(currentUser.role));
   const visibleSystemNavItems = systemNavItems.filter((menu) => menu.roles.includes(currentUser.role));
   const mobileNavItems = [...visiblePrimaryNavItems, ...visibleSystemNavItems];
@@ -289,6 +331,14 @@ export default function App() {
       setCurrentUser(latestUser);
     }
   }, [currentUser, isAuthenticated, users]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const availableTabs = new Set([...visiblePrimaryNavItems, ...visibleSystemNavItems].map((item) => item.id));
+    if (!availableTabs.has(activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, isAuthenticated, visiblePrimaryNavItems, visibleSystemNavItems]);
 
   // Sync automatic attendance, rations, and night shift records based on patrol schedules
   const syncAutoCalculations = (latestSchedules: PatrolSchedule[]) => {
@@ -607,12 +657,12 @@ export default function App() {
             
             {activeTab === 'dashboard' && (
               <Dashboard 
-                officers={officers} 
-                schedules={schedules} 
-                attendance={attendance} 
-                rations={rations} 
-                nightShifts={nightShifts} 
-                teams={teams}
+                officers={scopedOfficers} 
+                schedules={scopedSchedules} 
+                attendance={scopedAttendance} 
+                rations={scopedRations} 
+                nightShifts={scopedNightShifts} 
+                teams={scopedTeams}
                 settings={settings}
               />
             )}
@@ -640,13 +690,16 @@ export default function App() {
               <PatrolSchedules 
                 schedules={schedules} 
                 setSchedules={setSchedules} 
-                teams={teams} 
-                officers={officers} 
+                teams={scopedTeams} 
+                officers={scopedOfficers} 
                 approvals={approvals}
                 settings={settings}
                 addLog={addLog} 
                 syncAutoCalculations={syncAutoCalculations} 
                 currentUser={currentUser}
+                canViewAll={userScope.canViewAll}
+                allowedTeamIds={userScope.canViewAll ? teams.map((team) => team.id) : userScope.allowedTeamIds}
+                allowedOfficerIds={userScope.canViewAll ? officers.map((officer) => officer.id) : userScope.allowedOfficerIds}
               />
             )}
 
@@ -654,27 +707,28 @@ export default function App() {
               <AttendanceManagement 
                 attendance={attendance} 
                 setAttendance={setAttendance} 
-                officers={officers} 
+                officers={scopedOfficers} 
                 approvals={approvals}
                 settings={settings}
                 addLog={addLog} 
                 currentUser={currentUser}
+                allowedOfficerIds={userScope.canViewAll ? officers.map((officer) => officer.id) : userScope.allowedOfficerIds}
               />
             )}
 
             {activeTab === 'reports' && (
               <ApprovalAndReports 
-                officers={officers} 
-                attendance={attendance} 
-                rations={rations} 
-                nightShifts={nightShifts} 
+                officers={scopedOfficers} 
+                attendance={scopedAttendance} 
+                rations={scopedRations} 
+                nightShifts={scopedNightShifts} 
                 approvals={approvals} 
                 setApprovals={setApprovals} 
                 settings={settings} 
                 addLog={addLog} 
                 currentUser={currentUser} 
-                schedules={schedules}
-                teams={teams}
+                schedules={scopedSchedules}
+                teams={scopedTeams}
               />
             )}
 
@@ -692,6 +746,7 @@ export default function App() {
                 users={users}
                 setUsers={setUsers}
                 officers={officers}
+                teams={teams}
               />
             )}
 

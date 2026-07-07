@@ -12,6 +12,7 @@ interface AttendanceManagementProps {
   settings: SystemSettings;
   addLog: (action: string, details: string) => void;
   currentUser: User;
+  allowedOfficerIds: string[];
 }
 
 export default function AttendanceManagement({
@@ -22,6 +23,7 @@ export default function AttendanceManagement({
   settings,
   addLog,
   currentUser,
+  allowedOfficerIds,
 }: AttendanceManagementProps) {
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -41,18 +43,16 @@ export default function AttendanceManagement({
   const attendanceTypes: AttendanceType[] = [
     'Làm việc', 'Công tác', 'Học tập', 'Nghỉ bù', 'Nghỉ phép', 'Nghỉ vợ sinh', 'Nghỉ sinh', 'Nghỉ dưỡng'
   ];
-  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
+  const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers).filter((officer) =>
+    allowedOfficerIds.includes(officer.id),
+  );
 
   const isMonthLocked = (dateStr: string) => {
     return false; // Lock functionality removed
   };
 
   const handleOpenAdd = (dateStr?: string) => {
-    if (currentUser.role === 'officer_self' && currentUser.officerId) {
-      setOfficerId(currentUser.officerId);
-    } else {
-      setOfficerId(fixedPersonnelOfficers[0]?.id || '');
-    }
+    setOfficerId(fixedPersonnelOfficers[0]?.id || '');
     const targetDate = dateStr || new Date().toISOString().split('T')[0];
     setStartDate(targetDate);
     setEndDate(targetDate);
@@ -156,7 +156,7 @@ export default function AttendanceManagement({
     const officer = officers.find(o => o.id === a.officerId);
     if (!officer) return false;
 
-    if (currentUser.role === 'officer_self' && a.officerId !== currentUser.officerId) {
+    if (!allowedOfficerIds.includes(a.officerId)) {
       return false;
     }
 
@@ -439,12 +439,7 @@ export default function AttendanceManagement({
             </div>
 
             <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-              {fixedPersonnelOfficers.filter(off => {
-                if (currentUser.role === 'officer_self') {
-                  return off.id === currentUser.officerId;
-                }
-                return off.status === 'Đang công tác';
-              }).map(off => {
+              {fixedPersonnelOfficers.filter(off => off.status === 'Đang công tác').map(off => {
                 const offAtts = filteredAttendance.filter(a => a.officerId === off.id);
                 const countLàmViệc = offAtts.filter(a => a.type === 'Làm việc').length;
                 const countCôngTác = offAtts.filter(a => a.type === 'Công tác').length;
@@ -635,18 +630,13 @@ export default function AttendanceManagement({
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cán bộ chiến sĩ áp dụng *</label>
                 <select
                   required
-                  disabled={currentUser.role === 'officer_self'}
+                  disabled={fixedPersonnelOfficers.length <= 1}
                   value={officerId}
                   onChange={(e) => setOfficerId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="" disabled>--- Chọn cán bộ ---</option>
-                  {fixedPersonnelOfficers.filter(o => {
-                    if (currentUser.role === 'officer_self') {
-                      return o.id === currentUser.officerId;
-                    }
-                    return o.status === 'Đang công tác';
-                  }).map(o => (
+                  {fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác').map(o => (
                     <option key={o.id} value={o.id}>
                       {o.rank} {o.fullName} ({o.badgeNumber})
                     </option>

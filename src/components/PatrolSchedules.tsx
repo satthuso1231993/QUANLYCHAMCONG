@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Officer, Team, PatrolSchedule, MissionType, Approval, User, SystemSettings } from '../types';
 import { isNightShift, formatDateDmy } from '../utils/helpers';
+import { filterSchedulesByScope } from '../utils/accessScope';
 import { Plus, Calendar, Clock, MapPin, Tag, Shield, FileText, Edit2, Trash2, X, Lock, CheckCircle, HelpCircle, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
@@ -14,6 +15,9 @@ interface PatrolSchedulesProps {
   addLog: (action: string, details: string) => void;
   syncAutoCalculations: (latestSchedules: PatrolSchedule[]) => void;
   currentUser: User;
+  canViewAll: boolean;
+  allowedTeamIds: string[];
+  allowedOfficerIds: string[];
 }
 
 export default function PatrolSchedules({
@@ -26,6 +30,9 @@ export default function PatrolSchedules({
   addLog,
   syncAutoCalculations,
   currentUser,
+  canViewAll,
+  allowedTeamIds,
+  allowedOfficerIds,
 }: PatrolSchedulesProps) {
   const fixedPersonnelOfficers = useMemo(() => getFixedPersonnelOfficers(officers), [officers]);
   const [showModal, setShowModal] = useState(false);
@@ -34,7 +41,14 @@ export default function PatrolSchedules({
   const [calendarMonth, setCalendarMonth] = useState('2026-06');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; dateStr: string; topicStr: string } | null>(null);
 
-  const canManageSchedules = currentUser.role === 'admin' || currentUser.role === 'commander' || currentUser.role === 'team_leader';
+  const canManageSchedules = Boolean(currentUser.id);
+  const visibleSchedules = useMemo(
+    () =>
+      canViewAll
+        ? schedules
+        : filterSchedulesByScope(schedules, allowedTeamIds, allowedOfficerIds),
+    [allowedOfficerIds, allowedTeamIds, canViewAll, schedules],
+  );
 
   const getNextDateString = (dateStr: string) => {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -217,8 +231,18 @@ export default function PatrolSchedules({
       return;
     }
 
+    if (isTeamMode && !canViewAll && !allowedTeamIds.includes(teamId)) {
+      alert('Bạn chỉ được lập lịch cho đội hoặc tổ địa bàn thuộc phạm vi quản lý của tài khoản này!');
+      return;
+    }
+
     if (!isTeamMode && selectedOfficerIds.length === 0) {
       alert('Vui lòng chọn ít nhất 1 cán bộ chiến sĩ để thực hiện lịch tuần tra!');
+      return;
+    }
+
+    if (!isTeamMode && !selectedOfficerIds.every((id) => allowedOfficerIds.includes(id))) {
+      alert('Danh sách CBCS được chọn có người nằm ngoài phạm vi quản lý của tài khoản này!');
       return;
     }
 
@@ -363,12 +387,12 @@ export default function PatrolSchedules({
 
   // Derived display schedules
   const visualSchedules = useMemo(() => {
-    return schedules.map(s => ({
+    return visibleSchedules.map(s => ({
       ...s,
       originalSched: s,
       originalId: s.id
     }));
-  }, [schedules]);
+  }, [visibleSchedules]);
 
   // Create an array of days
   const daySlots: (number | null)[] = [];
@@ -429,7 +453,7 @@ export default function PatrolSchedules({
             }`}
           >
             <List className="w-3.5 h-3.5" />
-            <span>Bảng kê chi tiết ({schedules.length})</span>
+            <span>Bảng kê chi tiết ({visibleSchedules.length})</span>
           </button>
         </div>
 
@@ -628,14 +652,14 @@ export default function PatrolSchedules({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-              {schedules.length === 0 ? (
+              {visibleSchedules.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     Chưa có lịch tuần tra kiểm soát nào được ghi nhận. Vui lòng bấm "Lập Lịch Tuần Tra".
                   </td>
                 </tr>
               ) : (
-                [...schedules]
+                [...visibleSchedules]
                   .sort((a, b) => b.date.localeCompare(a.date))
                   .map((sched) => {
                     const hasCustomOfficers = sched.customOfficerIds && sched.customOfficerIds.length > 0;

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'leader' | 'commander' | 'team_leader' | 'officer_self';
+export type UserRole = 'admin' | 'doi' | 'to_dia_ban';
 
 export interface User {
   id: string;
@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   fullName: string;
   officerId?: string;
+  managedTeamId?: string;
 }
 
 export type OfficerRank = 
@@ -46,6 +47,8 @@ export interface Officer {
 export interface Team {
   id: string;
   name: string;
+  teamType?: 'doi' | 'to_dia_ban';
+  parentTeamId?: string;
   leaderId: string; // ID of Officer who is leader
   memberIds: string[]; // List of Officer IDs
 }
