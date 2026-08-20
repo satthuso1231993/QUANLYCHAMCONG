@@ -20,7 +20,7 @@ import AttendanceManagement from './components/AttendanceManagement';
 import ApprovalAndReports from './components/ApprovalAndReports';
 import SecurityAndSettings from './components/SecurityAndSettings';
 import DatabaseGuide from './components/DatabaseGuide';
-import { hasSupabaseConfig, saveSupabaseConfigToStorage, supabase } from './lib/supabaseClient';
+import { hasSupabaseConfig, supabase } from './lib/supabaseClient';
 import {
   loadAppStateFromSupabase,
   syncApprovalsToSupabase,
@@ -453,78 +453,6 @@ export default function App() {
           </div>
           <div className="text-white text-lg font-black uppercase tracking-wide">Đang kết nối Supabase</div>
           <div className="text-slate-400 text-sm font-semibold">Vui lòng chờ trong giây lát...</div>
-        </div>
-      </div>
-    );
-  }
-
-  const [manualUrl, setManualUrl] = useState('');
-  const [manualKey, setManualKey] = useState('');
-
-  if (!hasSupabaseConfig) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans text-white">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-red-600/90 border-2 border-yellow-400 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-              <Shield className="w-8 h-8" />
-            </div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-white">Kết Nối Cơ Sở Dữ Liệu Cloud</h2>
-            <p className="text-xs text-yellow-400 font-bold uppercase tracking-wider">Hệ thống Quản lý Chấm công CSGT</p>
-          </div>
-
-          <p className="text-xs text-slate-400 text-center leading-relaxed">
-            Ứng dụng vận hành hoàn toàn online qua <strong>Supabase Cloud</strong>. Vui lòng nhập thông tin kết nối bên dưới để bắt đầu:
-          </p>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!manualUrl.trim() || !manualKey.trim()) return;
-              saveSupabaseConfigToStorage(manualUrl, manualKey);
-              window.location.reload();
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Supabase Project URL *
-              </label>
-              <input
-                type="url"
-                required
-                value={manualUrl}
-                onChange={(e) => setManualUrl(e.target.value)}
-                placeholder="https://your-project.supabase.co"
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 text-white rounded-lg text-xs outline-hidden font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Supabase Anon / Public Key *
-              </label>
-              <textarea
-                required
-                rows={3}
-                value={manualKey}
-                onChange={(e) => setManualKey(e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 text-white rounded-lg text-xs outline-hidden font-mono"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-red-650 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors shadow-lg border border-red-500/30 cursor-pointer"
-            >
-              Lưu & Kết nối Supabase
-            </button>
-          </form>
-
-          <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 text-center space-y-1">
-            <p>💡 Hoặc tạo tệp <code className="text-yellow-400">.env.local</code> với <code className="text-yellow-400">VITE_SUPABASE_URL</code> & <code className="text-yellow-400">VITE_SUPABASE_ANON_KEY</code>.</p>
-          </div>
         </div>
       </div>
     );
