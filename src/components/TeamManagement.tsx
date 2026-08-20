@@ -19,7 +19,7 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
   // Form fields
   const [name, setName] = useState('');
-  const [teamType, setTeamType] = useState<'doi' | 'to_dia_ban'>('doi');
+  const [teamType, setTeamType] = useState<'doi' | 'to_dia_ban' | 'to_ttks'>('doi');
   const [parentTeamId, setParentTeamId] = useState('');
   const [leaderId, setLeaderId] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
@@ -70,30 +70,31 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
     });
   };
 
-  const doiTeamsCount = teams.filter((t) => (t.teamType || 'doi') === 'doi').length;
+  const doiTeams = teams.filter((t) => (t.teamType || 'doi') === 'doi');
+  const diaBanTeams = teams.filter((t) => (t.teamType || 'doi') === 'to_dia_ban');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !leaderId) {
-      alert('Vui lòng nhập Tên tổ tuần tra và bổ nhiệm Tổ trưởng!');
+      alert('Vui lòng nhập Tên tổ tuần tra và bổ nhiệm Tổ trưởng/Chỉ huy!');
       return;
     }
 
-    if (teamType === 'to_dia_ban' && !parentTeamId && doiTeamsCount > 0) {
-      alert('Tổ địa bàn phải được gán trực thuộc một Đội (đã có sẵn Đội trong hệ thống)!');
+    if (teamType === 'to_dia_ban' && !parentTeamId && doiTeams.length > 0) {
+      alert('Tổ địa bàn phải được gán trực thuộc một Đội!');
+      return;
+    }
+
+    if (teamType === 'to_ttks' && !parentTeamId && (doiTeams.length > 0 || diaBanTeams.length > 0)) {
+      alert('Tổ TTKS phải được gán trực thuộc một Đội hoặc một Tổ địa bàn!');
       return;
     }
 
     let finalParentTeamId: string | undefined;
-    if (teamType === 'to_dia_ban') {
-      if (parentTeamId) {
-        finalParentTeamId = parentTeamId;
-      } else if (doiTeamsCount === 0) {
-        finalParentTeamId = undefined;
-        if (!confirm('⚠️ CHƯA CÓ ĐỘI NÀO TRONG HỆ THỐNG.\n\nTổ địa bàn này sẽ được tạo TẠM THỜI KHÔNG CÓ ĐỘI TRỰC THUỘC.\nBạn có thể sửa lại (gán đội) sau khi tạo xong Đội trong "Cơ cấu tổ".\n\nTiếp tục tạo?')) {
-          return;
-        }
-      }
+    if (teamType === 'doi') {
+      finalParentTeamId = undefined;
+    } else {
+      finalParentTeamId = parentTeamId || undefined;
     }
 
     // Ensure leader is part of the members
@@ -108,7 +109,7 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
         ...t,
         name,
         teamType,
-        parentTeamId: teamType === 'to_dia_ban' ? finalParentTeamId : undefined,
+        parentTeamId: finalParentTeamId,
         leaderId,
         memberIds: finalMembers
       } : t));
@@ -119,7 +120,7 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
         id: `TEAM_${Date.now()}`,
         name,
         teamType,
-        parentTeamId: teamType === 'to_dia_ban' ? finalParentTeamId : undefined,
+        parentTeamId: finalParentTeamId,
         leaderId,
         memberIds: finalMembers
       };
@@ -174,14 +175,28 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                         <Users className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-800 text-sm">{team.name}</h3>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {getTeamTypeLabel(team.teamType)}
-                          {team.parentTeamId ? ` • Trực thuộc ${teams.find((item) => item.id === team.parentTeamId)?.name || 'Đội chưa xác định'}` : ''}
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-800 text-sm">{team.name}</h3>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              team.teamType === 'doi'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                : team.teamType === 'to_dia_ban'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-purple-100 text-purple-800 border border-purple-200'
+                            }`}
+                          >
+                            {getTeamTypeLabel(team.teamType)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {team.parentTeamId
+                            ? `Trực thuộc: ${teams.find((item) => item.id === team.parentTeamId)?.name || 'Cấp trên'}`
+                            : 'Đơn vị độc lập (Cấp Đội)'}
                         </p>
-                        {(team.teamType || 'doi') === 'to_dia_ban' && !team.parentTeamId && (
+                        {team.teamType !== 'doi' && !team.parentTeamId && (
                           <p className="text-[10px] text-amber-700 font-semibold mt-1 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 inline-block">
-                            ⚠️ Chưa gán Đội trực thuộc — Cần sửa lại sau!
+                            ⚠️ Chưa gán Đơn vị trực thuộc — Cần sửa lại!
                           </p>
                         )}
                       </div>
@@ -303,44 +318,72 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Cấp tổ đội *</label>
                   <select
                     value={teamType}
-                    onChange={(e) => setTeamType(e.target.value as 'doi' | 'to_dia_ban')}
+                    onChange={(e) => {
+                      const nextType = e.target.value as 'doi' | 'to_dia_ban' | 'to_ttks';
+                      setTeamType(nextType);
+                      if (nextType === 'doi') setParentTeamId('');
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                   >
-                    <option value="doi">Đội</option>
-                    <option value="to_dia_ban">Tổ địa bàn</option>
+                    <option value="doi">1. Cấp Đội (Đơn vị quản lý cấp trên)</option>
+                    <option value="to_dia_ban">2. Tổ địa bàn (Trực thuộc Đội)</option>
+                    <option value="to_ttks">3. Tổ TTKS (Trực thuộc Đội hoặc Tổ địa bàn)</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Đội trực thuộc
-                    {teamType === 'to_dia_ban' && doiTeamsCount === 0 && (
-                      <span className="ml-1 text-amber-600">⚠️</span>
+                    Đơn vị cấp trên trực thuộc
+                    {teamType !== 'doi' && (
+                      <span className="ml-1 text-rose-500">*</span>
                     )}
                   </label>
                   <select
                     value={parentTeamId}
                     onChange={(e) => setParentTeamId(e.target.value)}
-                    disabled={teamType !== 'to_dia_ban' || doiTeamsCount === 0}
+                    disabled={teamType === 'doi'}
+                    required={teamType !== 'doi'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
                   >
-                    {teamType === 'to_dia_ban' && doiTeamsCount === 0 ? (
-                      <option value="">⚠️ Hiện chưa có Đội nào — TẠM BỎ QUA (sau đó sửa lại)</option>
+                    {teamType === 'doi' ? (
+                      <option value="">(Cấp Đội — Không trực thuộc đơn vị nào)</option>
+                    ) : teamType === 'to_dia_ban' ? (
+                      <>
+                        <option value="">--- Chọn Đội trực thuộc ---</option>
+                        {doiTeams
+                          .filter((t) => t.id !== editingTeam?.id)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} (Đội)
+                            </option>
+                          ))}
+                      </>
                     ) : (
-                      <option value="">--- Chọn đội quản lý ---</option>
+                      <>
+                        <option value="">--- Chọn Đội hoặc Tổ địa bàn trực thuộc ---</option>
+                        <optgroup label="Cấp Đội (Tổ TTKS thuộc Đội trực tiếp)">
+                          {doiTeams
+                            .filter((t) => t.id !== editingTeam?.id)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Cấp Tổ địa bàn (Tổ TTKS do Tổ địa bàn quản lý)">
+                          {diaBanTeams
+                            .filter((t) => t.id !== editingTeam?.id)
+                            .map((t) => {
+                              const parentDoi = doiTeams.find((d) => d.id === t.parentTeamId);
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} {parentDoi ? `(Thuộc: ${parentDoi.name})` : ''}
+                                </option>
+                              );
+                            })}
+                        </optgroup>
+                      </>
                     )}
-                    {teams
-                      .filter((team) => team.id !== editingTeam?.id && (team.teamType || 'doi') === 'doi')
-                      .map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
                   </select>
-                  {teamType === 'to_dia_ban' && doiTeamsCount === 0 && (
-                    <p className="mt-1 text-[10px] text-amber-700 font-medium">
-                      💡 Hệ thống hiện chưa có Đội nào. Bạn <strong>có thể tạo Tổ địa bàn trước</strong>, sau khi tạo xong Đội thì vào đây sửa & gán lại trực thuộc nhé.
-                    </p>
-                  )}
                 </div>
               </div>
 

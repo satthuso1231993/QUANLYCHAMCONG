@@ -1,5 +1,4 @@
-// src/utils/accessScope.ts
-import { Team, User, PatrolSchedule } from '../types';
+import { NightShiftRecord, PatrolSchedule, RationRecord, Team, User } from '../types';
 
 export interface UserScope {
   canViewAll: boolean;
@@ -8,6 +7,52 @@ export interface UserScope {
   allowedTeamIds: string[];
   allowedOfficerIds: string[];
 }
+
+export const getUserRoleLabel = (role: User['role']) => {
+  switch (role) {
+    case 'admin':
+      return 'Quản trị viên';
+    case 'doi':
+      return 'Tài khoản Đội';
+    case 'to_dia_ban':
+      return 'Tài khoản Tổ địa bàn';
+    default:
+      return 'Người dùng';
+  }
+};
+
+export const getTeamTypeLabel = (teamType?: Team['teamType']) => {
+  if (teamType === 'to_dia_ban') return 'Tổ địa bàn';
+  if (teamType === 'to_ttks') return 'Tổ TTKS';
+  return 'Đội';
+};
+
+/**
+ * Thu thập tất cả các ID tổ/đội cấp con cháu trực thuộc theo cây phân cấp:
+ * - Cấp Đội -> Gom các Tổ TTKS trực tiếp + các Tổ địa bàn con + các Tổ TTKS thuộc Tổ địa bàn
+ * - Cấp Tổ địa bàn -> Gom Tổ địa bàn đó + các Tổ TTKS thuộc Tổ địa bàn
+ */
+export const collectDescendantTeamIds = (rootTeamId: string, teams: Team[]): string[] => {
+  const result = new Set<string>();
+  if (!rootTeamId) return [];
+
+  const queue = [rootTeamId];
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (!result.has(currentId)) {
+      result.add(currentId);
+      // Tìm các tổ con có parentTeamId là currentId
+      const children = teams.filter((t) => t.parentTeamId === currentId);
+      for (const child of children) {
+        if (!result.has(child.id)) {
+          queue.push(child.id);
+        }
+      }
+    }
+  }
+
+  return Array.from(result);
+};
 
 export const resolveUserScope = (currentUser: User, teams: Team[]): UserScope => {
   // 1. Quản trị viên: Toàn quyền truy cập
@@ -34,16 +79,8 @@ export const resolveUserScope = (currentUser: User, teams: Team[]): UserScope =>
     };
   }
 
-  // 3. Phân cấp Đội / Tổ địa bàn
-  let allowedTeamIds: string[] = [currentUser.managedTeamId];
-  
-  // Nếu là cấp Đội: Tự động gom thêm các Tổ địa bàn con trực thuộc Đội
-  if (currentUser.role === 'doi') {
-    const childTeams = teams.filter(
-      (t) => t.parentTeamId === currentUser.managedTeamId && (t.teamType || 'doi') === 'to_dia_ban'
-    );
-    allowedTeamIds = [...allowedTeamIds, ...childTeams.map((t) => t.id)];
-  }
+  // 3. Phân cấp Đội / Tổ địa bàn (thu thập đệ quy toàn bộ tổ con/cháu)
+  const allowedTeamIds = collectDescendantTeamIds(currentUser.managedTeamId, teams);
 
   // Lấy danh sách ID tất cả cán bộ thuộc các đơn vị trong phạm vi
   const allowedOfficerIds = Array.from(
@@ -66,3 +103,36 @@ export const resolveUserScope = (currentUser: User, teams: Team[]): UserScope =>
     allowedOfficerIds,
   };
 };
+
+export const filterSchedulesByScope = (
+  schedules: PatrolSchedule[],
+  allowedTeamIds: string[],
+  allowedOfficerIds: string[],
+) => {
+  return schedules.filter((schedule) => {
+    if (schedule.teamId) {
+      return allowedTeamIds.includes(schedule.teamId);
+    }
+    if (schedule.customOfficerIds && schedule.customOfficerIds.length > 0) {
+      return schedule.customOfficerIds.some((officerId) => allowedOfficerIds.includes(officerId));
+    }
+    return false;
+  });
+};
+
+export const filterRecordsByOfficerScope = <T extends { officerId: string }>(rows: T[], allowedOfficerIds: string[]) => {
+  return rows.filter((row) => allowedOfficerIds.includes(row.officerId));
+};
+
+export const filterRationsByScheduleScope = (
+  rows: RationRecord[],
+  allowedOfficerIds: string[],
+  allowedScheduleIds: string[],
+) => rows.filter((row) => allowedOfficerIds.includes(row.officerId) || allowedScheduleIds.includes(row.scheduleId));
+
+export const filterNightShiftsByScheduleScope = (
+  rows: NightShiftRecord[],
+  allowedOfficerIds: string[],
+  allowedScheduleIds: string[],
+) => rows.filter((row) => allowedOfficerIds.includes(row.officerId) || allowedScheduleIds.includes(row.scheduleId));
+

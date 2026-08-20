@@ -32,7 +32,7 @@ create table if not exists public.officers (
 create table if not exists public.teams (
   id text primary key,
   name text not null,
-  team_type text not null default 'doi' check (team_type in ('doi', 'to_dia_ban')),
+  team_type text not null default 'doi' check (team_type in ('doi', 'to_dia_ban', 'to_ttks')),
   parent_team_id text null references public.teams(id) on delete set null,
   leader_id text null references public.officers(id) on delete set null,
   member_ids text[] not null default '{}',
@@ -100,7 +100,7 @@ do $$
 begin
   alter table public.teams
   add constraint teams_team_type_check
-  check (team_type in ('doi', 'to_dia_ban'));
+  check (team_type in ('doi', 'to_dia_ban', 'to_ttks'));
 exception
   when duplicate_object then
     null;

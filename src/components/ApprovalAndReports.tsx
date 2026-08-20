@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Officer, Attendance, RationRecord, NightShiftRecord, Approval, SystemSettings, PatrolSchedule, Team, ReportTemplateId, ReportTemplateOverride, ReportTemplateOverrides } from '../types';
 import { formatCurrency, formatDateDmy, numberToVietnameseWords } from '../utils/helpers';
-import { FileText, Lock, Unlock, Printer, Shield, Check, Calendar, HelpCircle, RefreshCw } from 'lucide-react';
+import { FileText, FileSpreadsheet, Lock, Unlock, Printer, Shield, Check, Calendar, HelpCircle, RefreshCw, Download } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { hasOnlyOfficeConfig } from '../lib/onlyOffice';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
@@ -574,7 +574,7 @@ export default function ApprovalAndReports({
   const activeRations = React.useMemo(() => rations.filter(r => r.date.startsWith(selectedMonth)), [rations, selectedMonth]);
   const activeNightShifts = React.useMemo(() => nightShifts.filter(n => n.date.startsWith(selectedMonth)), [nightShifts, selectedMonth]);
 
-  const buildExportHtml = (docType: 'word', options?: { forPrint?: boolean }) => {
+  const buildExportHtml = (docType: 'word' | 'excel', options?: { forPrint?: boolean }) => {
     const forPrint = Boolean(options?.forPrint);
     const yearStr = selectedMonth ? selectedMonth.split('-')[0] : '2026';
     const monthStr = selectedMonth ? selectedMonth.split('-')[1] : '06';
@@ -777,6 +777,34 @@ export default function ApprovalAndReports({
 <style>
   @page { size: ${pageSize}; margin: ${pageMargin}; }
   body { margin: 0; }
+`
+        : docType === 'excel'
+        ? `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<!--[if gte mso 9]>
+<xml>
+ <x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+   <x:ExcelWorksheet>
+    <x:Name>${escapeHtml(activeReportLabel)}</x:Name>
+    <x:WorksheetOptions>
+     <x:DisplayGridlines/>
+     <x:Print>
+      <x:ValidPrinterInfo/>
+      <x:PaperSizeIndex>9</x:PaperSizeIndex>
+      <x:Orientation>${isLandscape ? 'Landscape' : 'Portrait'}</x:Orientation>
+     </x:Print>
+    </x:WorksheetOptions>
+   </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+ </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<style>
+  body { margin: 0; font-family: 'Times New Roman', serif; }
 `
         : `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -2044,6 +2072,24 @@ export default function ApprovalAndReports({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const handleExportExcel = async () => {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      const { htmlContent } = buildExportHtml('excel');
+      downloadHtmlAsFile(
+        htmlContent,
+        'application/vnd.ms-excel;charset=utf-8;',
+        `bao_cao_phong_csgt_${activeReport}_thang_${selectedMonth}.xls`
+      );
+      addLog('Xuất Excel', `Đã export file Excel (.xls) biểu mẫu ${activeReport} Tháng ${shortMonthYear} để chỉnh sửa offline.`);
+    } catch {
+      setExportError('Xuất Excel thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExportWord = async () => {
     setExportError(null);
     setIsExporting(true);
@@ -2402,24 +2448,18 @@ export default function ApprovalAndReports({
           ) : null}
 
           {/* Export / Print */}
-          <div className="mt-4 space-y-2 z-50">
-            <div className="bg-white p-3 rounded-xl border border-slate-150 shadow-2xs space-y-2">
-              <label className="block text-xs font-semibold text-slate-500">Định dạng xem/xuất:</label>
-              <select
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value as 'word' | 'pdf')}
-                disabled={isEditingTemplate || isExporting}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-bold outline-hidden"
-              >
-                <option value="word">Word</option>
-                <option value="pdf">PDF</option>
-              </select>
+          <div className="mt-4 space-y-2.5 z-50">
+            <div className="bg-white p-3.5 rounded-xl border border-slate-150 shadow-2xs space-y-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Xuất & In Biểu Mẫu:</label>
+              <div className="text-[11px] text-slate-500 leading-relaxed">
+                Tất cả 07 biểu mẫu đã được căn chỉnh <strong>A4 chuẩn Nghị định 30/2020/NĐ-CP</strong>.
+              </div>
               {exportError ? (
                 <div className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
                   <div>{exportError}</div>
                   <button
                     onClick={() => setExportError(null)}
-                    className="mt-2 text-[11px] font-black text-rose-700 underline"
+                    className="mt-1 text-[11px] font-black text-rose-700 underline"
                   >
                     Thử lại
                   </button>
@@ -2427,23 +2467,38 @@ export default function ApprovalAndReports({
               ) : null}
             </div>
 
-            <div className="flex gap-2">
+            {/* Excel Export Button */}
             <button
-              onClick={handleExportWord}
+              onClick={handleExportExcel}
               disabled={isEditingTemplate || isExporting}
-              className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm cursor-pointer"
+              title="Xuất file Excel (.xls) để tự do chỉnh sửa bảng tính offline"
             >
-              <FileText className="w-4 h-4" />
-              <span>Xuất Word</span>
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Xuất file Excel (.xls) — Sửa Offline</span>
             </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleExportWord}
+                disabled={isEditingTemplate || isExporting}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                title="Xuất tài liệu Word (.doc)"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Xuất Word</span>
+              </button>
+
+              <button
+                onClick={handleExportPdf}
+                disabled={isEditingTemplate || isExporting}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+                title="Mở hộp thoại in hoặc Lưu PDF A4 chuẩn NĐ 30"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>In / Lưu PDF</span>
+              </button>
             </div>
-            <button
-              onClick={handleExportPdf}
-              disabled={isEditingTemplate || isExporting}
-              className="w-full flex items-center justify-center gap-1 px-3 py-2.5 text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
-            >
-              <span>Xuất PDF</span>
-            </button>
           </div>
         </div>
 

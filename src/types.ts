@@ -47,7 +47,7 @@ export interface Officer {
 export interface Team {
   id: string;
   name: string;
-  teamType?: 'doi' | 'to_dia_ban';
+  teamType?: 'doi' | 'to_dia_ban' | 'to_ttks';
   parentTeamId?: string;
   leaderId: string; // ID of Officer who is leader
   memberIds: string[]; // List of Officer IDs
