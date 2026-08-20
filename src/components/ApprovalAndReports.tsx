@@ -624,9 +624,13 @@ export default function ApprovalAndReports({
     const noWrapHtml = (value: string) => escapeHtml(value).replace(/ /g, '&nbsp;');
 
     const renderHeaderUnderline = (variant: 'cqbh' | 'tn', key: string, defaultHtml: string) => {
+      const content = cellTextHtml(key, defaultHtml);
+      if (docType === 'excel') {
+        const isCqbh = variant === 'cqbh';
+        return `<div style="font-size: ${isCqbh ? '12pt' : '12pt'}; font-weight: bold; text-align: center; text-decoration: underline; padding-top: 2px;">${content}</div>`;
+      }
       const textClass = variant === 'cqbh' ? 'cqbh-text' : 'tn-text';
       const lineClass = variant === 'cqbh' ? 'rule-underline-cqbh' : 'rule-underline-tn';
-      const content = cellTextHtml(key, defaultHtml);
       const style = cellStyleCss(key);
       const inlineTextStyle =
         variant === 'cqbh'
@@ -648,10 +652,67 @@ export default function ApprovalAndReports({
         spacePx?: number;
         gapWidthPercent?: number;
         colWidthsPercent?: number[];
+        totalCols?: number;
       },
     ) => {
       const marginTopPx = options?.marginTopPx ?? 20;
       const spacePx = options?.spacePx ?? sigSpace75;
+      const totalReportCols = options?.totalCols ?? (
+        activeReport === '1_bang_cham_cong' ? daysInMonth + 4 :
+        activeReport === '2_bang_dinh_luong' ? daysInMonth + 5 :
+        activeReport === '3_danh_sach_tien_dinh_luong' ? 8 :
+        activeReport === '4_de_xuat_dinh_luong' ? 8 :
+        activeReport === '5_bang_lam_dem' ? daysInMonth + 5 :
+        activeReport === '6_danh_sach_tien_lam_dem' ? 7 : 7
+      );
+
+      if (docType === 'excel') {
+        const numSigners = columns.length;
+        let colspans: number[] = [];
+        let gapSpans: number[] = [];
+
+        if (numSigners === 3) {
+          if (totalReportCols >= 20) {
+            const spanPerSigner = Math.floor((totalReportCols - 2) / 3);
+            const rem = totalReportCols - 2 - (spanPerSigner * 3);
+            colspans = [spanPerSigner, spanPerSigner, spanPerSigner + rem];
+            gapSpans = [1, 1];
+          } else {
+            const spanPerSigner = Math.floor(totalReportCols / 3);
+            const rem = totalReportCols - (spanPerSigner * 3);
+            colspans = [spanPerSigner, spanPerSigner, spanPerSigner + rem];
+            gapSpans = [0, 0];
+          }
+        } else if (numSigners === 2) {
+          const half = Math.floor(totalReportCols / 2);
+          colspans = [half, totalReportCols - half];
+          gapSpans = [0];
+        } else {
+          colspans = [totalReportCols];
+          gapSpans = [];
+        }
+
+        const titleCells = columns.map((col, idx) => {
+          const gap = (gapSpans[idx] && gapSpans[idx] > 0) ? `<td colspan="${gapSpans[idx]}" style="border: none;"></td>` : '';
+          return `<td colspan="${colspans[idx]}" ${cellKeyAttr(col.titleKey)} style="border: none; text-align: center; font-weight: bold; font-size: 13pt; vertical-align: top; padding: 4px; ${cellStyleCss(col.titleKey)}">${cellTextHtml(col.titleKey, col.titleHtml)}</td>${gap}`;
+        }).join('');
+
+        const spaceRow = `<tr style="border: none; height: ${spacePx}px;"><td colspan="${totalReportCols}" style="border: none; height: ${spacePx}px;"></td></tr>`;
+
+        const nameCells = columns.map((col, idx) => {
+          const gap = (gapSpans[idx] && gapSpans[idx] > 0) ? `<td colspan="${gapSpans[idx]}" style="border: none;"></td>` : '';
+          const fontPt = col.nameFontPt ?? 13;
+          return `<td colspan="${colspans[idx]}" ${cellKeyAttr(col.nameKey)} style="border: none; text-align: center; font-weight: bold; font-size: ${fontPt}pt; vertical-align: bottom; padding: 4px; ${cellStyleCss(col.nameKey)}">${cellTextHtml(col.nameKey, col.nameHtml)}</td>${gap}`;
+        }).join('');
+
+        return `
+        <table class="sig-block" style="width: 100%; border: none; border-collapse: collapse; margin-top: ${marginTopPx}px; font-family: 'Times New Roman', Times, serif;">
+          <tr style="border: none;">${titleCells}</tr>
+          ${spaceRow}
+          <tr style="border: none;">${nameCells}</tr>
+        </table>`;
+      }
+
       const gapWidth = options?.gapWidthPercent ?? (columns.length === 2 ? 10 : 2);
       const defaultColWidth = columns.length === 2 ? 45 : 32;
       const colWidths = options?.colWidthsPercent && options.colWidthsPercent.length === columns.length
@@ -697,18 +758,22 @@ export default function ApprovalAndReports({
         'hdr_dateline',
         renderTemplateHtml(template.dateLineTemplate || defaultTemplate.dateLineTemplate || '', templateVars),
       );
+      const leftSpan = options.leftCols;
+      const centerSpan = options.centerCols;
+      const rightSpan = options.rightCols;
+
       return `
-      <table class="admin-hdr" style="width: 100%; border: none; margin-bottom: ${options.marginBottomPx ?? 20}px; font-family: 'Times New Roman'; table-layout: fixed;">
+      <table class="admin-hdr" style="width: 100%; border: none; border-collapse: collapse; margin-bottom: ${options.marginBottomPx ?? 20}px; font-family: 'Times New Roman', Times, serif;">
         <tr style="border: none;">
-          <td colspan="${options.leftCols}" style="border: none; text-align: center; font-weight: bold; vertical-align: top; width: 48%;">
-            <span class="cqql" ${cellKeyAttr('hdr_cqql')} style="${cellStyleCss('hdr_cqql')}">${cellTextHtml('hdr_cqql', noWrapHtml(unitName.toUpperCase()))}</span>
+          <td colspan="${leftSpan}" style="border: none; text-align: center; font-weight: bold; vertical-align: top; font-size: 12pt;">
+            <div class="cqql" ${cellKeyAttr('hdr_cqql')} style="font-size: 11pt; font-weight: bold; ${cellStyleCss('hdr_cqql')}">${cellTextHtml('hdr_cqql', noWrapHtml(unitName.toUpperCase()))}</div>
             ${renderHeaderUnderline('cqbh', 'hdr_cqbh', noWrapHtml(departmentName.toUpperCase()))}
           </td>
-          <td colspan="${options.centerCols}" style="border: none; width: 4%;"></td>
-          <td colspan="${options.rightCols}" style="border: none; text-align: center; font-weight: bold; vertical-align: top; width: 48%;">
-            <span class="qh" ${cellKeyAttr('hdr_qh')} style="${cellStyleCss('hdr_qh')}">${cellTextHtml('hdr_qh', noWrapHtml('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'))}</span>
+          ${centerSpan > 0 ? `<td colspan="${centerSpan}" style="border: none;"></td>` : ''}
+          <td colspan="${rightSpan}" style="border: none; text-align: center; font-weight: bold; vertical-align: top; font-size: 12pt;">
+            <div class="qh" ${cellKeyAttr('hdr_qh')} style="font-size: 12pt; font-weight: bold; ${cellStyleCss('hdr_qh')}">${cellTextHtml('hdr_qh', noWrapHtml('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'))}</div>
             ${renderHeaderUnderline('tn', 'hdr_tn', noWrapHtml('Độc lập - Tự do - Hạnh phúc'))}
-            ${options.includeDateLine === false ? '' : `<span class="dateline" ${cellKeyAttr('hdr_dateline')} style="${cellStyleCss('hdr_dateline')}">${dateLineHtml}</span>`}
+            ${options.includeDateLine === false ? '' : `<div class="dateline" ${cellKeyAttr('hdr_dateline')} style="font-size: 12pt; font-style: italic; font-weight: normal; margin-top: 4px; ${cellStyleCss('hdr_dateline')}">${dateLineHtml}</div>`}
           </td>
         </tr>
         ${options.titleRowsHtml}
@@ -1133,8 +1198,7 @@ export default function ApprovalAndReports({
 
     if (activeReport === '1_bang_cham_cong') {
       const totalColumns = daysInMonth + 4;
-      const thirdSpan = Math.floor(totalColumns / 3);
-      const headerCenterSpan = 2;
+      const headerCenterSpan = 1;
       const headerLeftSpan = Math.floor((totalColumns - headerCenterSpan) / 2);
       const headerRightSpan = totalColumns - headerCenterSpan - headerLeftSpan;
 
@@ -1145,6 +1209,10 @@ export default function ApprovalAndReports({
       const sCompensation = settings.symbolCompensation || 'Nb';
       const sMaternity = settings.symbolMaternity || 'Ts';
       const sRest = settings.symbolRest || 'Nd';
+
+      const lCol1 = Math.floor(totalColumns / 3);
+      const lCol2 = Math.floor(totalColumns / 3);
+      const lCol3 = totalColumns - lCol1 - lCol2;
 
       htmlContent += `
       ${renderAdminHeader({
@@ -1157,30 +1225,30 @@ export default function ApprovalAndReports({
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="${totalColumns}" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="${totalColumns}" class="title-lbl" ${cellKeyAttr('b1_title')} style="border: none; padding: 0; ${cellStyleCss('b1_title')}">${cellTextHtml('b1_title', 'BẢNG CHẤM CÔNG NGÀY LÀM VIỆC')}</td>
+          <td colspan="${totalColumns}" class="title-lbl" ${cellKeyAttr('b1_title')} style="border: none; text-align: center; font-size: 14pt; font-weight: bold; padding: 4px 0; ${cellStyleCss('b1_title')}">${cellTextHtml('b1_title', 'BẢNG CHẤM CÔNG NGÀY LÀM VIỆC')}</td>
         </tr>
         <tr style="border: none;">
-          <td colspan="${totalColumns}" class="subtitle-lbl" ${cellKeyAttr('b1_subtitle')} style="border: none; padding: 0; ${cellStyleCss('b1_subtitle')}">${cellTextHtml('b1_subtitle', `Tháng ${monthStr} năm ${yearStr}`)}</td>
+          <td colspan="${totalColumns}" class="subtitle-lbl" ${cellKeyAttr('b1_subtitle')} style="border: none; text-align: center; font-size: 12pt; font-weight: bold; padding-bottom: 8px; ${cellStyleCss('b1_subtitle')}">${cellTextHtml('b1_subtitle', `Tháng ${monthStr} năm ${yearStr}`)}</td>
         </tr>
         <tr style="border: none;"><td colspan="${totalColumns}" style="border: none; height: 15px;"></td></tr>`,
       })}
 
       <!-- Main Daily Grid Table -->
-      <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; table-layout: fixed;">
+      <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; table-layout: fixed;">
         <thead>
           <tr>
-            <th rowspan="2" class="font-bold" style="border: 0.5pt solid #52525b; background-color: #f4f4f5;">STT</th>
-            <th rowspan="2" class="font-bold namecol" style="border: 0.5pt solid #52525b; background-color: #f4f4f5; text-align: left;">Họ và tên</th>
-            <th colspan="${daysInMonth}" class="font-bold th-yellow-bar" style="border: 0.5pt solid #52525b; background-color: #fef08a;">Ngày trong tháng</th>
-            <th colspan="2" class="font-bold th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0;">Số công hưởng trong tháng</th>
+            <th rowspan="2" class="font-bold" style="border: 0.5pt solid #52525b; background-color: #f4f4f5; width: 40px; text-align: center; vertical-align: middle;">STT</th>
+            <th rowspan="2" class="font-bold namecol" style="border: 0.5pt solid #52525b; background-color: #f4f4f5; text-align: left; vertical-align: middle; width: 180px; padding-left: 6px;">Họ và tên</th>
+            <th colspan="${daysInMonth}" class="font-bold th-yellow-bar" style="border: 0.5pt solid #52525b; background-color: #fef08a; text-align: center; vertical-align: middle; padding: 4px;">Ngày trong tháng</th>
+            <th colspan="2" class="font-bold th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0; text-align: center; vertical-align: middle; padding: 4px;">Số công hưởng trong tháng</th>
           </tr>
           <tr>
             ${daysArray.map((day) => {
               const sun = isSunday(day);
-              return `<th ${cellKeyAttr(`b1_day_${day}`)} style="border: 0.5pt solid #52525b; width: 25px; ${sun ? 'background-color: #e4e4e7; font-weight: bold;' : 'background-color: #fef08a;'} ${cellStyleCss(`b1_day_${day}`)}" class="daycol ${sun ? 'td-sunday' : ''}">${day}</th>`;
+              return `<th ${cellKeyAttr(`b1_day_${day}`)} style="border: 0.5pt solid #52525b; width: 25px; text-align: center; vertical-align: middle; ${sun ? 'background-color: #e4e4e7; font-weight: bold;' : 'background-color: #fef08a;'} ${cellStyleCss(`b1_day_${day}`)}" class="daycol ${sun ? 'td-sunday' : ''}">${day}</th>`;
             }).join('')}
-            <th class="th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0; width: 62px;">Số ngày</th>
-            <th class="th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0; width: 62px;">Số ngày nghỉ</th>
+            <th class="th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0; width: 62px; text-align: center; vertical-align: middle;">Số ngày</th>
+            <th class="th-green-bar" style="border: 0.5pt solid #52525b; background-color: #bbf7d0; width: 62px; text-align: center; vertical-align: middle;">Số ngày nghỉ</th>
           </tr>
         </thead>
         <tbody>
@@ -1198,28 +1266,27 @@ export default function ApprovalAndReports({
               const { symbol, countsAsWork } = resolveAttendanceSymbol(att, isScheduled);
               if (countsAsWork) workDays++;
               if (!symbol) blankDays++;
-              return `<td ${cellKeyAttr(`b1_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; ${sun ? 'background-color: #e4e4e7;' : ''} ${cellStyleCss(`b1_day_${day}`)}">${symbol}</td>`;
+              return `<td ${cellKeyAttr(`b1_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@'; ${sun ? 'background-color: #e4e4e7;' : ''} ${cellStyleCss(`b1_day_${day}`)}">${symbol}</td>`;
             }).join('');
 
             return `<tr>
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: rgb(153, 27, 27);">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: rgb(153, 27, 27); padding-left: 6px; mso-number-format:'\\@';">${off.fullName}</td>
               ${dayCells}
-              <td style="border: 0.5pt solid #52525b; background-color: #f0fdf4; font-weight: bold; font-family: monospace;">${workDays}</td>
-              <td style="border: 0.5pt solid #52525b; background-color: #f0fdf4; font-weight: bold; font-family: monospace;">${blankDays}</td>
+              <td style="border: 0.5pt solid #52525b; background-color: #f0fdf4; font-weight: bold; text-align: center; mso-number-format:'0'; font-family: monospace;">${workDays}</td>
+              <td style="border: 0.5pt solid #52525b; background-color: #f0fdf4; font-weight: bold; text-align: center; mso-number-format:'0'; font-family: monospace;">${blankDays}</td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>
 
       <!-- Commitment text line -->
-      <table style="width: 100%; border: none; margin-top: 15px;">
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 15px;">
         <tr style="border: none;">
-          <td colspan="${totalColumns}" class="bottom-text" style="border: none; text-align: center; font-style: italic; font-size: ${bodyFontPt}pt;">
+          <td colspan="${totalColumns}" class="bottom-text" style="border: none; text-align: center; font-style: italic; font-size: ${bodyFontPt}pt; padding: 6px 0;">
             <span ${cellKeyAttr('b1_commitment')} style="${cellStyleCss('b1_commitment')}">${cellTextHtml('b1_commitment', renderTemplateHtml(template.attendanceCommitment || defaultTemplate.attendanceCommitment || '', templateVars))}</span>
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="${totalColumns}" style="border: none; height: 15px;"></td></tr>
       </table>
 
       ${renderSignatureBlock([
@@ -1244,37 +1311,29 @@ export default function ApprovalAndReports({
           nameHtml: noWrapHtml(sLeader),
           nameFontPt: 14,
         },
-      ], { marginTopPx: 10, spacePx: sigSpace60 })}
-
-      <br/><br/>
+      ], { marginTopPx: 15, spacePx: sigSpace60, totalCols: totalColumns })}
 
       <!-- Legend Indicator Table -->
-      <table style="width: 100%; border: none; margin-top: 15px; page-break-inside: avoid !important; mso-page-break-inside: avoid !important;">
-        <tr style="border: none; page-break-inside: avoid !important; mso-page-break-inside: avoid !important;">
-          <td style="border: none; padding: 0; text-align: left; page-break-inside: avoid !important; mso-page-break-inside: avoid !important;">
-      <table class="legend" align="left" style="width: 1%; border: 0.5pt solid #52525b; table-layout: auto; white-space: nowrap;">
+      <table class="legend" style="width: 100%; border: 0.5pt solid #52525b; border-collapse: collapse; margin-top: 15px;">
         <tr>
-          <td colspan="3" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; background-color: #f4f4f5; padding: 3px;">
+          <td colspan="${totalColumns}" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; background-color: #f4f4f5; padding: 4px;">
             Ký hiệu chấm công:
           </td>
         </tr>
         <tr>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Làm việc tại đơn vị: <b>${sWork}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Nghỉ phép: <b>${sLeave}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Hội nghị, học tập: <b>${sStudy}</b></td>
+          <td colspan="${lCol1}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Làm việc tại đơn vị: <b>${sWork}</b></td>
+          <td colspan="${lCol2}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Nghỉ phép: <b>${sLeave}</b></td>
+          <td colspan="${lCol3}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Hội nghị, học tập: <b>${sStudy}</b></td>
         </tr>
         <tr>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Ốm, thai sản: <b>${sMaternity}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Nghỉ bù: <b>${sCompensation}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Đi công tác: <b>${sMission}</b></td>
+          <td colspan="${lCol1}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Ốm, thai sản: <b>${sMaternity}</b></td>
+          <td colspan="${lCol2}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Nghỉ bù: <b>${sCompensation}</b></td>
+          <td colspan="${lCol3}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Đi công tác: <b>${sMission}</b></td>
         </tr>
         <tr>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Nghỉ vợ sinh: <b>${sPaternityLeave}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px; white-space: nowrap;">Điều dưỡng: <b>${sRest}</b></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 3px;" colspan="1"></td>
-        </tr>
-      </table>
-          </td>
+          <td colspan="${lCol1}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Nghỉ vợ sinh: <b>${sPaternityLeave}</b></td>
+          <td colspan="${lCol2}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; white-space: nowrap;">Điều dưỡng: <b>${sRest}</b></td>
+          <td colspan="${lCol3}" style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;"></td>
         </tr>
       </table>
       `;
@@ -1313,7 +1372,7 @@ export default function ApprovalAndReports({
         <thead>
           <tr style="background-color: #fffbce; font-weight: bold;">
             <th rowspan="2" style="border: 0.5pt solid #52525b; width: 40px; text-align: center; vertical-align: middle; font-weight: bold;">STT</th>
-            <th rowspan="2" class="namecol" style="border: 0.5pt solid #52525b; text-align: left; vertical-align: middle; font-weight: bold;">Họ và tên</th>
+            <th rowspan="2" class="namecol" style="border: 0.5pt solid #52525b; text-align: left; vertical-align: middle; font-weight: bold; width: 180px; padding-left: 6px;">Họ và tên</th>
             <th rowspan="2" style="border: 0.5pt solid #52525b; width: 90px; text-align: center; vertical-align: middle; font-weight: bold;">Chức vụ</th>
             <th rowspan="2" style="border: 0.5pt solid #52525b; width: 90px; text-align: center; vertical-align: middle; font-weight: bold;">Mức hưởng</th>
             <th colspan="${daysInMonth}" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; background-color: #fffbce;">Ngày trong tháng</th>
@@ -1332,17 +1391,17 @@ export default function ApprovalAndReports({
             const totalDays = offRations.length;
 
             return `<tr>
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; font-family: 'Times New Roman'; font-size: 12pt !important;">${off.fullName}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${off.position}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center;">Mức III</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; font-family: 'Times New Roman'; font-size: 12pt !important; padding-left: 6px; mso-number-format:'\\@';">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@';">${off.position}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@';">Mức III</td>
               ${daysArray.map(day => {
                 const dateStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
                 const hasRation = offRations.some(r => r.date === dateStr);
                 const cellBg = isSunday(day) ? 'background-color: #cbd5e1;' : '';
-                return `<td ${cellKeyAttr(`b2_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; ${cellBg} ${cellStyleCss(`b2_day_${day}`)}">${hasRation ? 'III' : ''}</td>`;
+                return `<td ${cellKeyAttr(`b2_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'\\@'; ${cellBg} ${cellStyleCss(`b2_day_${day}`)}">${hasRation ? 'III' : ''}</td>`;
               }).join('')}
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${totalDays}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${totalDays}</td>
             </tr>`;
           }).join('')}
           <tr style="background-color: #f4f4f5; font-weight: bold;">
@@ -1351,16 +1410,20 @@ export default function ApprovalAndReports({
               const cellBg = isSunday(day) ? 'background-color: #cbd5e1;' : '';
               return `<td style="border: 0.5pt solid #52525b; ${cellBg}"></td>`;
             }).join('')}
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; color: #991b1b;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; color: #991b1b; mso-number-format:'0';">
               ${orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0)}
             </td>
           </tr>
         </tbody>
       </table>
 
-      <p ${cellKeyAttr('b2_commitment')} style="text-align: center; font-size: ${bodyFontPt}pt; font-weight: normal; font-style: italic; margin-top: 15px; margin-bottom: 25px; ${cellStyleCss('b2_commitment')}">
-        ${cellTextHtml('b2_commitment', renderTemplateHtml(template.rationCommitment || defaultTemplate.rationCommitment || '', templateVars))}
-      </p>
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px;">
+        <tr style="border: none;">
+          <td colspan="${parentColSpan}" ${cellKeyAttr('b2_commitment')} style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-weight: normal; font-style: italic; ${cellStyleCss('b2_commitment')}">
+            ${cellTextHtml('b2_commitment', renderTemplateHtml(template.rationCommitment || defaultTemplate.rationCommitment || '', templateVars))}
+          </td>
+        </tr>
+      </table>
 
       ${renderSignatureBlock([
         {
@@ -1384,7 +1447,7 @@ export default function ApprovalAndReports({
           nameHtml: noWrapHtml(sLeader),
           nameFontPt: 14,
         },
-      ], { marginTopPx: 20, spacePx: sigSpace60 })}
+      ], { marginTopPx: 20, spacePx: sigSpace60, totalCols: parentColSpan })}
       `;
     } else if (activeReport === '3_danh_sach_tien_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
@@ -1394,30 +1457,30 @@ export default function ApprovalAndReports({
 
       htmlContent += `
       ${renderAdminHeader({
-        totalCols: 9,
+        totalCols: 8,
         leftCols: 4,
-        centerCols: 1,
+        centerCols: 0,
         rightCols: 4,
         marginBottomPx: 20,
         titleRowsHtml: `
-        <tr style="border: none;"><td colspan="9" style="border: none; height: 15px;"></td></tr>
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="9" ${cellKeyAttr('b3_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; ${cellStyleCss('b3_title')}">
+          <td colspan="8" ${cellKeyAttr('b3_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; padding: 4px 0; ${cellStyleCss('b3_title')}">
             ${cellTextHtml('b3_title', `DANH SÁCH CÁN BỘ, CHIẾN SỸ HƯỞNG TIỀN ĂN ĐỊNH LƯỢNG <span style="color: #b91c1c;">THÁNG ${String(titleMonth).padStart(2, '0')} NĂM ${titleYear}</span>`)}
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="9" ${cellKeyAttr('b3_team')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: normal; ${cellStyleCss('b3_team')}">
+          <td colspan="8" ${cellKeyAttr('b3_team')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: normal; ${cellStyleCss('b3_team')}">
             ${cellTextHtml('b3_team', escapeHtml(template.teamName || defaultTemplate.teamName || ''))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="9" style="border: none; height: 5px;"></td></tr>
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 5px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="9" style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-style: italic;">
+          <td colspan="8" style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-style: italic;">
             <span ${cellKeyAttr('b3_intro')} style="${cellStyleCss('b3_intro')}">${cellTextHtml('b3_intro', renderTemplateHtml(template.rationIntro || defaultTemplate.rationIntro || '', { place: template.placeName || defaultTemplate.placeName || '', month: titleMonth, year: titleYear, mm: pad2(titleMonth), team: template.teamName || defaultTemplate.teamName || '', issuer: template.issuerUnitName || defaultTemplate.issuerUnitName || '', recipient: template.recipientUnitName || defaultTemplate.recipientUnitName || '' }))}</span>
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="9" style="border: none; height: 15px;"></td></tr>`,
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 15px;"></td></tr>`,
       })}
 
       <!-- Table content -->
@@ -1439,33 +1502,38 @@ export default function ApprovalAndReports({
             const countDays = activeRations.filter(r => r.officerId === off.id).length;
             const amount = countDays * settings.rationRate;
             return `<tr style="height: 35px;">
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; padding-left: 6px; font-size: 12pt !important;">${off.fullName}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center;">Mức III</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; font-family: monospace;">${settings.rationRate.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace;">${countDays}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace;">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@';">Mức III</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${settings.rationRate.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0';">${countDays}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${amount.toLocaleString('vi-VN')}</td>
               <td style="border: 0.5pt solid #52525b;"></td>
               <td style="border: 0.5pt solid #52525b;"></td>
             </tr>`;
           }).join('')}
           <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
             <td colspan="4" style="border: 0.5pt solid #52525b; text-align: center;">Tổng cộng</td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace;">${totalDays}</td>
-            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace;">${totalAmount.toLocaleString('vi-VN')}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0';">${totalDays}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${totalAmount.toLocaleString('vi-VN')}</td>
             <td style="border: 0.5pt solid #52525b; background-color: #cbd5e1;"></td>
             <td style="border: 0.5pt solid #52525b;"></td>
           </tr>
         </tbody>
       </table>
 
-      <div style="margin-top: 15px; font-size: ${bodyFontPt}pt; font-weight: normal; text-align: center; color: #b91c1c; font-style: italic;">
-        (Bằng chữ: ${numberToVietnameseWords(totalAmount)})
-      </div>
-
-      <div ${cellKeyAttr('b3_payment_request')} style="text-align: center; font-style: italic; font-size: ${bodyFontPt}pt; margin-top: 10px; margin-bottom: 25px; ${cellStyleCss('b3_payment_request')}">
-        ${cellTextHtml('b3_payment_request', renderTemplateHtml(template.rationPaymentRequest || defaultTemplate.rationPaymentRequest || '', { place: template.placeName || defaultTemplate.placeName || '', month: titleMonth, year: titleYear, mm: pad2(titleMonth), team: template.teamName || defaultTemplate.teamName || '', issuer: template.issuerUnitName || defaultTemplate.issuerUnitName || '', recipient: template.recipientUnitName || defaultTemplate.recipientUnitName || '' }))}
-      </div>
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 12px;">
+        <tr style="border: none;">
+          <td colspan="8" style="border: none; text-align: center; font-style: italic; color: #b91c1c; font-size: ${bodyFontPt}pt; padding: 4px 0;">
+            (Bằng chữ: ${numberToVietnameseWords(totalAmount)})
+          </td>
+        </tr>
+        <tr style="border: none;">
+          <td colspan="8" ${cellKeyAttr('b3_payment_request')} style="border: none; text-align: center; font-style: italic; font-size: ${bodyFontPt}pt; padding-top: 6px; ${cellStyleCss('b3_payment_request')}">
+            ${cellTextHtml('b3_payment_request', renderTemplateHtml(template.rationPaymentRequest || defaultTemplate.rationPaymentRequest || '', { place: template.placeName || defaultTemplate.placeName || '', month: titleMonth, year: titleYear, mm: pad2(titleMonth), team: template.teamName || defaultTemplate.teamName || '', issuer: template.issuerUnitName || defaultTemplate.issuerUnitName || '', recipient: template.recipientUnitName || defaultTemplate.recipientUnitName || '' }))}
+          </td>
+        </tr>
+      </table>
 
       ${renderSignatureBlock([
         {
@@ -1486,7 +1554,7 @@ export default function ApprovalAndReports({
           nameKey: 'b3_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
         },
-      ], { marginTopPx: 35, spacePx: sigSpace60 })}
+      ], { marginTopPx: 25, spacePx: sigSpace60, totalCols: 8 })}
       `;
     } else if (activeReport === '4_de_xuat_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
@@ -1496,82 +1564,76 @@ export default function ApprovalAndReports({
 
       htmlContent += `
       ${renderAdminHeader({
-        totalCols: 7,
-        leftCols: 3,
-        centerCols: 1,
-        rightCols: 3,
-        marginBottomPx: 25,
+        totalCols: 8,
+        leftCols: 4,
+        centerCols: 0,
+        rightCols: 4,
+        marginBottomPx: 20,
         titleRowsHtml: `
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" ${cellKeyAttr('b4_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; ${cellStyleCss('b4_title')}">
+          <td colspan="8" ${cellKeyAttr('b4_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; padding: 4px 0; ${cellStyleCss('b4_title')}">
             ${cellTextHtml('b4_title', 'GIẤY ĐỀ XUẤT')}
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="7" ${cellKeyAttr('b4_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c; ${cellStyleCss('b4_subtitle')}">
+          <td colspan="8" ${cellKeyAttr('b4_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c; padding-bottom: 8px; ${cellStyleCss('b4_subtitle')}">
             ${cellTextHtml('b4_subtitle', `Về việc thanh toán tiền ăn định lượng của CBCS <span style="text-decoration: underline;">tháng ${String(titleMonth).padStart(2, '0')}/${titleYear}</span>`)}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>`,
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 10px;"></td></tr>`,
       })}
 
-      <table style="width: 100%; border: none; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman';">
+      <table style="width: 100%; border: none; border-collapse: collapse; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman';">
         <tr style="border: none;">
-          <td colspan="7" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; padding: 0; font-weight: bold; ${cellStyleCss('recipient_line')}">
+          <td colspan="8" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; padding: 4px 0; font-weight: bold; ${cellStyleCss('recipient_line')}">
             ${cellTextHtml('recipient_line', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 5px;"></td></tr>
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 5px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: left; padding: 5px; line-height: 1.5; text-indent: 30px;">
+          <td colspan="8" style="border: none; text-align: justify; padding: 5px 0; line-height: 1.5; text-indent: 30px;">
             <span ${cellKeyAttr('b4_basis')} style="${cellStyleCss('b4_basis')}">${cellTextHtml('b4_basis', renderTemplateHtml(template.rationBasis || defaultTemplate.rationBasis || '', templateVars))}</span>
           </td>
         </tr>
       </table>
 
       <!-- Formula visual box row like the photo -->
-      <table style="width: 100%; border: none; margin: 20px 0; font-family: 'Times New Roman';">
+      <table style="width: 100%; border: none; border-collapse: collapse; margin: 15px auto; font-family: 'Times New Roman';">
         <tr style="border: none;">
-          <td style="border: none; text-align: center; vertical-align: middle;">
-            <div style="display: inline-block; margin: 0 auto; text-align: center;">
-              <span style="border: 1px solid #000; padding: 4px 20px; font-weight: bold; background-color: #ffffff; font-size: 11pt; font-family: monospace; display: inline-block; min-width: 50px;">
-                ${totalDays}
-              </span>
-              <span style="font-size: 11pt; font-weight: bold; padding: 0 5px;">ngày x</span>
-              <span style="border: 1px solid #000; padding: 4px 20px; font-weight: bold; background-color: #ffffff; font-size: 11pt; font-family: monospace; display: inline-block; min-width: 80px;">
-                ${settings.rationRate.toLocaleString('vi-VN')} đ/ngày &nbsp;
-              </span>
-              <span style="font-size: 11pt; font-weight: bold; padding: 0 5px;">=</span>
-              <span style="border: 1px solid #000; padding: 4px 20px; font-weight: bold; background-color: #ffffff; font-size: 11pt; font-family: monospace; display: inline-block; min-width: 110px; color: #b91c1c;">
-                ${totalAmount.toLocaleString('vi-VN')}
-              </span>
-              <span style="font-size: 11pt; font-weight: bold; padding-left: 5px;">đ</span>
-            </div>
+          <td colspan="8" style="border: none; text-align: center; font-size: 12pt; font-weight: bold;">
+            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px;">${totalDays}</span> ngày &nbsp; x &nbsp; 
+            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px;">${settings.rationRate.toLocaleString('vi-VN')} đ/ngày</span> &nbsp; = &nbsp; 
+            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px; color: #b91c1c;">${totalAmount.toLocaleString('vi-VN')} đ</span>
           </td>
         </tr>
       </table>
 
-      <div style="margin-top: 10px; font-size: ${bodyFontPt}pt; font-weight: normal; text-align: center; color: #b91c1c;">
-        Bằng chữ: <span style="font-style: italic;">${numberToVietnameseWords(totalAmount)}</span>
-      </div>
-
-      <div ${cellKeyAttr('b4_attachment_note')} style="margin-top: 5px; font-size: ${bodyFontPt}pt; text-align: center; font-style: italic; ${cellStyleCss('b4_attachment_note')}">
-        ${cellTextHtml('b4_attachment_note', renderTemplateHtml(template.rationAttachmentNote || defaultTemplate.rationAttachmentNote || '', templateVars))}
-      </div>
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 5px;">
+        <tr style="border: none;">
+          <td colspan="8" style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c;">
+            Bằng chữ: <span style="font-style: italic;">${numberToVietnameseWords(totalAmount)}</span>
+          </td>
+        </tr>
+        <tr style="border: none;">
+          <td colspan="8" ${cellKeyAttr('b4_attachment_note')} style="border: none; margin-top: 5px; font-size: ${bodyFontPt}pt; text-align: center; font-style: italic; padding-top: 4px; ${cellStyleCss('b4_attachment_note')}">
+            ${cellTextHtml('b4_attachment_note', renderTemplateHtml(template.rationAttachmentNote || defaultTemplate.rationAttachmentNote || '', templateVars))}
+          </td>
+        </tr>
+      </table>
 
       <!-- Confirmation statement in a box -->
-      <table style="width: 100%; border: 1px solid #000; margin: 20px 0; background-color: #ffffff; border-collapse: collapse;">
-        <tr style="border: 1px solid #000;">
-          <td style="border: none; padding: 12px; font-size: ${bodyFontPt}pt; text-align: justify; line-height: 1.5; font-family: 'Times New Roman';">
+      <table style="width: 100%; border: 0.5pt solid #52525b; border-collapse: collapse; margin: 15px 0; background-color: #ffffff;">
+        <tr style="border: 0.5pt solid #52525b;">
+          <td colspan="8" style="border: 0.5pt solid #52525b; padding: 12px; font-size: ${bodyFontPt}pt; text-align: justify; line-height: 1.5; font-family: 'Times New Roman'; font-style: italic;">
             <span ${cellKeyAttr('b4_confirmation')} style="${cellStyleCss('b4_confirmation')}">${cellTextHtml('b4_confirmation', renderTemplateHtml(template.rationConfirmation || defaultTemplate.rationConfirmation || '', templateVars))}</span>
           </td>
         </tr>
       </table>
 
-      <table style="width: 100%; border: none; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman'; margin-bottom: 30px;">
+      <table style="width: 100%; border: none; border-collapse: collapse; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman'; margin-bottom: 20px;">
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: left; padding: 5px; line-height: 1.5; text-indent: 30px;">
+          <td colspan="8" style="border: none; text-align: justify; padding: 5px 0; line-height: 1.5; text-indent: 30px;">
             <span ${cellKeyAttr('b4_approval_request')} style="${cellStyleCss('b4_approval_request')}">${cellTextHtml('b4_approval_request', renderTemplateHtml(template.rationApprovalRequest || defaultTemplate.rationApprovalRequest || '', templateVars))}</span>
           </td>
         </tr>
@@ -1590,7 +1652,7 @@ export default function ApprovalAndReports({
           nameKey: 'b4_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
         },
-      ], { marginTopPx: 0, spacePx: sigSpace75, gapWidthPercent: 0.5, colWidthsPercent: [33, 33, 33] })}
+      ], { marginTopPx: 10, spacePx: sigSpace75, totalCols: 8 })}
       `;
     } else if (activeReport === '5_bang_lam_dem') {
       const totalHeaderCols = daysInMonth + 5;
@@ -1608,12 +1670,12 @@ export default function ApprovalAndReports({
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="${daysInMonth + 5}" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="${daysInMonth + 5}" ${cellKeyAttr('b5_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; ${cellStyleCss('b5_title')}">
+          <td colspan="${daysInMonth + 5}" ${cellKeyAttr('b5_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; padding: 4px 0; ${cellStyleCss('b5_title')}">
             ${cellTextHtml('b5_title', 'BẢNG CHẤM CÔNG CBCS ĐƯỢC HƯỞNG TIỀN BỒI DƯỠNG TTKS BAN ĐÊM')}
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="${daysInMonth + 5}" ${cellKeyAttr('b5_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-weight: bold; ${cellStyleCss('b5_subtitle')}">
+          <td colspan="${daysInMonth + 5}" ${cellKeyAttr('b5_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-weight: bold; padding-bottom: 8px; ${cellStyleCss('b5_subtitle')}">
             ${cellTextHtml('b5_subtitle', `${escapeHtml(template.teamName || defaultTemplate.teamName || '')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Tháng ${String(month).padStart(2, '0')}/${year}`)}
           </td>
         </tr>
@@ -1662,8 +1724,8 @@ export default function ApprovalAndReports({
             });
 
             return `<tr style="height: 35px;">
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important;">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
               ${daysArray.map(day => {
                 const dObj = new Date(year, month - 1, day);
                 const dayOfWeek = dObj.getDay();
@@ -1680,11 +1742,11 @@ export default function ApprovalAndReports({
                 } else if (dailyPoints >= 0.5) {
                   cellText = '/';
                 }
-                return `<td ${cellKeyAttr(`b5_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; ${bg} ${cellStyleCss(`b5_day_${day}`)}">${cellText}</td>`;
+                return `<td ${cellKeyAttr(`b5_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'\\@'; ${bg} ${cellStyleCss(`b5_day_${day}`)}">${cellText}</td>`;
               }).join('')}
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${du2hCount || 0}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${du4hCount || 0}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace;">${totalTime > 0 ? totalTime.toFixed(1) : '-'}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${du2hCount || 0}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${du4hCount || 0}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0.0';">${totalTime > 0 ? totalTime.toFixed(1) : '-'}</td>
             </tr>`;
           }).join('')}
 
@@ -1692,7 +1754,7 @@ export default function ApprovalAndReports({
           <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
             <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-size: ${tableFontPt}pt;">Tổng cộng</td>
             ${daysArray.map(() => `<td style="border: 0.5pt solid #52525b; background-color: #f4f4f5;"></td>`).join('')}
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">
               ${(() => {
                 let total2h = 0;
                 orderedOfficers.forEach(off => {
@@ -1705,7 +1767,7 @@ export default function ApprovalAndReports({
                 return total2h;
               })()}
             </td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">
               ${(() => {
                 let total4h = 0;
                 orderedOfficers.forEach(off => {
@@ -1718,7 +1780,7 @@ export default function ApprovalAndReports({
                 return total4h;
               })()}
             </td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0.0';">
               ${activeNightShifts.reduce((acc, curr) => acc + curr.hoursCount, 0).toFixed(1)}
             </td>
           </tr>
@@ -1726,7 +1788,7 @@ export default function ApprovalAndReports({
       </table>
 
       <!-- Commitment and signatures -->
-      <table style="width: 100%; border: none; margin-top: 15px; font-family: 'Times New Roman';">
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 15px; font-family: 'Times New Roman';">
         <tr style="border: none;">
           <td colspan="${daysInMonth + 5}" ${cellKeyAttr('b5_commitment')} style="border: none; text-align: center; font-weight: normal; font-size: ${bodyFontPt}pt; padding: 10px 0; ${cellStyleCss('b5_commitment')}">
             ${cellTextHtml('b5_commitment', renderTemplateHtml(template.nightCommitment || defaultTemplate.nightCommitment || '', templateVars))}
@@ -1753,7 +1815,7 @@ export default function ApprovalAndReports({
           nameKey: 'b5_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
         },
-      ], { marginTopPx: 25, spacePx: sigSpace75 })}
+      ], { marginTopPx: 20, spacePx: sigSpace75, totalCols: daysInMonth + 5 })}
       `;
     } else if (activeReport === '6_danh_sach_tien_lam_dem') {
       htmlContent += `
@@ -1762,22 +1824,36 @@ export default function ApprovalAndReports({
         leftCols: 3,
         centerCols: 1,
         rightCols: 3,
-        marginBottomPx: 25,
+        marginBottomPx: 20,
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; font-weight: bold; font-family: 'Times New Roman'; ${cellStyleCss('recipient_line')}">
+          <td colspan="7" ${cellKeyAttr('b6_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; padding: 4px 0; ${cellStyleCss('b6_title')}">
+            ${cellTextHtml('b6_title', 'DANH SÁCH CÁN BỘ, CHIẾN SỸ HƯỞNG TIỀN BỒI DƯỠNG LÀM VIỆC BAN ĐÊM')}
+          </td>
+        </tr>
+        <tr style="border: none;">
+          <td colspan="7" ${cellKeyAttr('b6_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 12pt; font-weight: bold; color: #b91c1c; padding-bottom: 8px; ${cellStyleCss('b6_subtitle')}">
+            ${cellTextHtml('b6_subtitle', `Tháng ${String(month).padStart(2, '0')} năm ${year}`)}
+          </td>
+        </tr>
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>`,
+      })}
+
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman';">
+        <tr style="border: none;">
+          <td colspan="7" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; font-weight: bold; padding: 4px 0; ${cellStyleCss('recipient_line')}">
             ${cellTextHtml('recipient_line', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 5px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" class="narr14" style="border: none; text-align: justify; font-family: 'Times New Roman'; text-indent: 30px;">
+          <td colspan="7" class="narr14" style="border: none; text-align: justify; text-indent: 30px; padding: 5px 0;">
             <span ${cellKeyAttr('b6_basis')} style="${cellStyleCss('b6_basis')}">${cellTextHtml('b6_basis', renderTemplateHtml(template.nightBasis || defaultTemplate.nightBasis || '', templateVars))}</span>
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>`,
-      })}
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>
+      </table>
 
       <!-- Table content -->
       <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; font-family: 'Times New Roman'; table-layout: fixed;">
@@ -1797,11 +1873,11 @@ export default function ApprovalAndReports({
             const countShifts = activeNightShifts.filter(n => n.officerId === off.id).reduce((acc, curr) => acc + curr.hoursCount, 0);
             const amount = countShifts * settings.nightShiftRate;
             return `<tr style="height: 35px;">
-              <td style="border: 0.5pt solid #52525b; text-align: center;">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important;">${off.fullName}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px;">${settings.nightShiftRate.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${countShifts.toFixed(1)}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px;">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">${settings.nightShiftRate.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0.0';">${countShifts.toFixed(1)}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">${amount.toLocaleString('vi-VN')}</td>
               <td style="border: 0.5pt solid #52525b;"></td>
               <td style="border: 0.5pt solid #52525b;"></td>
             </tr>`;
@@ -1809,10 +1885,10 @@ export default function ApprovalAndReports({
           <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
             <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Tổng cộng:</td>
             <td style="border: 0.5pt solid #52525b;"></td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0.0';">
               ${activeNightShifts.reduce((acc, curr) => acc + curr.hoursCount, 0).toFixed(1)}
             </td>
-            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px;">
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">
               ${activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString('vi-VN')}
             </td>
             <td style="border: 0.5pt solid #52525b;"></td>
@@ -1821,13 +1897,17 @@ export default function ApprovalAndReports({
         </tbody>
       </table>
 
-      <div style="margin-top: 15px; font-size: ${bodyFontPt}pt; font-weight: normal; text-align: center; color: #b91c1c;">
-        (Bằng chữ: <span style="font-style: italic;">${numberToVietnameseWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))}</span>)
-      </div>
-
-      <table style="width: 100%; border: none; font-family: 'Times New Roman'; margin-top: 15px; margin-bottom: 25px;">
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 12px;">
         <tr style="border: none;">
-          <td colspan="7" class="narr14" style="border: none; text-align: justify; padding: 5px; text-indent: 30px;">
+          <td colspan="7" style="border: none; text-align: center; font-style: italic; color: #b91c1c; font-size: ${bodyFontPt}pt; padding: 4px 0;">
+            (Bằng chữ: ${numberToVietnameseWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))})
+          </td>
+        </tr>
+      </table>
+
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; margin-top: 10px; margin-bottom: 20px;">
+        <tr style="border: none;">
+          <td colspan="7" class="narr14" style="border: none; text-align: justify; padding: 5px 0; text-indent: 30px;">
             <span ${cellKeyAttr('b6_payment_request')} style="${cellStyleCss('b6_payment_request')}">${cellTextHtml('b6_payment_request', renderTemplateHtml(template.nightPaymentRequest || defaultTemplate.nightPaymentRequest || '', templateVars))}</span>
           </td>
         </tr>
@@ -1852,7 +1932,7 @@ export default function ApprovalAndReports({
           nameKey: 'b6_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
         },
-      ], { marginTopPx: 0, spacePx: sigSpace75 })}
+      ], { marginTopPx: 10, spacePx: sigSpace75, totalCols: 7 })}
       `;
     } else {
       const totalShiftsCount = activeNightShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
@@ -1864,70 +1944,74 @@ export default function ApprovalAndReports({
         leftCols: 3,
         centerCols: 1,
         rightCols: 3,
-        marginBottomPx: 25,
+        marginBottomPx: 20,
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" ${cellKeyAttr('b7_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 13pt; font-weight: bold; line-height: 1.2; ${cellStyleCss('b7_title')}">
+          <td colspan="7" ${cellKeyAttr('b7_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 13pt; font-weight: bold; line-height: 1.2; padding: 4px 0; ${cellStyleCss('b7_title')}">
             ${cellTextHtml('b7_title', `GIẤY ĐỀ XUẤT<br/><span style="font-size: 11pt; font-weight: bold; display: block; margin-top: 5px; text-transform: none;">Về việc thanh toán tiền bồi dưỡng TTKS ban đêm tháng ${month}/${year}</span>`)}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>`,
+      })}
+
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman';">
         <tr style="border: none;">
-          <td colspan="7" class="recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; font-size: 11.5pt; font-weight: bold; font-family: 'Times New Roman'; ${cellStyleCss('recipient_line')}">
+          <td colspan="7" class="recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; font-size: 11.5pt; font-weight: bold; padding: 4px 0; ${cellStyleCss('recipient_line')}">
             ${cellTextHtml('recipient_line', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 5px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: justify; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman'; line-height: 1.5; text-indent: 30px;">
+          <td colspan="7" style="border: none; text-align: justify; font-size: ${bodyFontPt}pt; line-height: 1.5; text-indent: 30px; padding: 5px 0;">
             <span ${cellKeyAttr('b7_basis')} style="${cellStyleCss('b7_basis')}">${cellTextHtml('b7_basis', renderTemplateHtml(template.nightBasis || defaultTemplate.nightBasis || '', templateVars))}</span>
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>`,
-      })}
+      </table>
 
       <!-- Formula line formatted nicely in Excel -->
-      <table style="width: 100%; border: none; font-family: 'Times New Roman'; margin: 15px auto;">
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; margin: 15px auto;">
         <tr style="border: none;">
           <td colspan="7" style="border: none; text-align: center; font-size: 12pt; font-weight: bold;">
             <span style="border-bottom: 0.5pt solid black; padding: 2px 8px;">${totalShiftsCount.toFixed(1)}</span> lượt &nbsp;&nbsp;&nbsp;&nbsp; 
             x &nbsp;&nbsp;&nbsp;&nbsp; 
             <span style="border-bottom: 0.5pt solid black; padding: 2px 8px;">${settings.nightShiftRate.toLocaleString('vi-VN')} đ</span> &nbsp;&nbsp;&nbsp;&nbsp; 
             = &nbsp;&nbsp;&nbsp;&nbsp; 
-            <span style="border-bottom: 0.5pt solid black; padding: 2px 8px;">${totalAmount.toLocaleString('vi-VN')} đ</span>
+            <span style="border-bottom: 0.5pt solid black; padding: 2px 8px; color: #b91c1c;">${totalAmount.toLocaleString('vi-VN')} đ</span>
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>
+      </table>
+
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 5px;">
         <tr style="border: none;">
           <td colspan="7" style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c;">
-            Bằng chữ: (${numberToVietnameseWords(totalAmount)})
+            Bằng chữ: <i>${numberToVietnameseWords(totalAmount)}</i>
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-style: italic; font-weight: normal; padding-top: 5px;">
-            <span ${cellKeyAttr('b7_attachment_note')} style="${cellStyleCss('b7_attachment_note')}">${cellTextHtml('b7_attachment_note', renderTemplateHtml(template.nightAttachmentNote || defaultTemplate.nightAttachmentNote || '', templateVars))}</span>
+          <td colspan="7" ${cellKeyAttr('b7_attachment_note')} style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-style: italic; font-weight: normal; padding-top: 4px; ${cellStyleCss('b7_attachment_note')}">
+            ${cellTextHtml('b7_attachment_note', renderTemplateHtml(template.nightAttachmentNote || defaultTemplate.nightAttachmentNote || '', templateVars))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
       </table>
 
       <!-- Statement Box (Việc chấm công...) -->
-      <table style="width: 100%; border: 0.5pt solid #a1a1aa; border-collapse: collapse; font-family: 'Times New Roman'; background-color: #fafafa; margin-bottom: 20px;">
-        <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: justify; font-size: ${bodyFontPt}pt; font-style: italic; font-weight: normal; padding: 12px; line-height: 1.5; text-indent: 20px;">
+      <table style="width: 100%; border: 0.5pt solid #52525b; border-collapse: collapse; font-family: 'Times New Roman'; background-color: #ffffff; margin: 15px 0;">
+        <tr style="border: 0.5pt solid #52525b;">
+          <td colspan="7" style="border: 0.5pt solid #52525b; text-align: justify; font-size: ${bodyFontPt}pt; font-style: italic; font-weight: normal; padding: 12px; line-height: 1.5; text-indent: 20px;">
             <span ${cellKeyAttr('b7_confirmation')} style="${cellStyleCss('b7_confirmation')}">${cellTextHtml('b7_confirmation', renderTemplateHtml(template.nightConfirmation || defaultTemplate.nightConfirmation || '', templateVars))}</span>
           </td>
         </tr>
       </table>
 
-      <table style="width: 100%; border: none; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt;">
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; margin-bottom: 20px;">
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: justify; padding: 5px 0 20px 0; line-height: 1.5; text-indent: 30px;">
+          <td colspan="7" style="border: none; text-align: justify; padding: 5px 0; line-height: 1.5; text-indent: 30px;">
             <span ${cellKeyAttr('b7_approval_request')} style="${cellStyleCss('b7_approval_request')}">${cellTextHtml('b7_approval_request', renderTemplateHtml(template.nightApprovalRequest || defaultTemplate.nightApprovalRequest || '', templateVars))}</span>
           </td>
         </tr>
       </table>
+
       ${renderSignatureBlock([
         {
           titleKey: 'b7_sig_commander_title',
@@ -1941,7 +2025,7 @@ export default function ApprovalAndReports({
           nameKey: 'b7_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
         },
-      ], { marginTopPx: 0, spacePx: sigSpace80 })}
+      ], { marginTopPx: 10, spacePx: sigSpace80, totalCols: 7 })}
       `;
     }
 
