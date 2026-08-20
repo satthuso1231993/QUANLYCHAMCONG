@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Officer, Team, PatrolSchedule, MissionType, Approval, User, SystemSettings } from '../types';
 import { isNightShift, formatDateDmy } from '../utils/helpers';
 import { filterSchedulesByScope } from '../utils/accessScope';
-import { Plus, Calendar, Clock, MapPin, Tag, Shield, FileText, Edit2, Trash2, X, Lock, CheckCircle, HelpCircle, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, Tag, Shield, FileText, Edit2, Trash2, X, Lock, CheckCircle, HelpCircle, ChevronLeft, ChevronRight, LayoutGrid, List, ClipboardList, BookOpen, Printer, Download, FileSpreadsheet } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface PatrolSchedulesProps {
@@ -40,6 +40,11 @@ export default function PatrolSchedules({
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [calendarMonth, setCalendarMonth] = useState('2026-06');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; dateStr: string; topicStr: string } | null>(null);
+
+  // Modals for Patrol Plan and TTKS Diary
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showDiaryModal, setShowDiaryModal] = useState(false);
+  const [selectedDiaryShiftId, setSelectedDiaryShiftId] = useState<string>('all');
 
   const canManageSchedules = Boolean(currentUser.id);
   const visibleSchedules = useMemo(
@@ -541,6 +546,279 @@ export default function PatrolSchedules({
     }));
   }, [visibleSchedules]);
 
+  // Current month filtered schedules for Plan & Diary
+  const monthPlanSchedules = useMemo(() => {
+    return visibleSchedules
+      .filter(s => s.date.startsWith(calendarMonth))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  }, [visibleSchedules, calendarMonth]);
+
+  // Helper to get detailed roster text for a shift
+  const getShiftRosterInfo = (sched: PatrolSchedule) => {
+    let leaderName = '';
+    let memberNames = '';
+    let allOfficers: Officer[] = [];
+
+    if (sched.customOfficerIds && sched.customOfficerIds.length > 0) {
+      allOfficers = sched.customOfficerIds.map(id => officers.find(o => o.id === id)).filter(Boolean) as Officer[];
+      if (allOfficers.length > 0) {
+        leaderName = `${allOfficers[0].rank || 'Đ/c'} ${allOfficers[0].fullName} (Tổ trưởng)`;
+        memberNames = allOfficers.slice(1).map(o => `${o.rank || 'Đ/c'} ${o.fullName}`).join(', ');
+      }
+    } else if (sched.teamId) {
+      const team = teams.find(t => t.id === sched.teamId);
+      if (team) {
+        allOfficers = team.memberIds.map(id => officers.find(o => o.id === id)).filter(Boolean) as Officer[];
+        const leaderOff = allOfficers.find(o => o.id === team.leaderId) || allOfficers[0];
+        if (leaderOff) {
+          leaderName = `${leaderOff.rank || 'Đ/c'} ${leaderOff.fullName} (Tổ trưởng)`;
+          memberNames = allOfficers.filter(o => o.id !== leaderOff.id).map(o => `${o.rank || 'Đ/c'} ${o.fullName}`).join(', ');
+        }
+      }
+    }
+
+    const fullRosterText = allOfficers.map(o => `${o.rank || 'Đ/c'} ${o.fullName}`).join(', ');
+
+    return {
+      leaderName,
+      memberNames,
+      allOfficers,
+      count: allOfficers.length,
+      fullRosterText: fullRosterText || 'Chưa phân công',
+    };
+  };
+
+  // Helper download file
+  const downloadPlanOrDiaryFile = (htmlContent: string, mimeType: string, filename: string) => {
+    const blob = new Blob([htmlContent], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Build HTML for Plan
+  const buildPlanHtml = (docType: 'excel' | 'word') => {
+    const unitName = settings.unitName || 'CÔNG AN TỈNH';
+    const departmentName = settings.departmentName || 'PHÒNG CẢNH SÁT GIAO THÔNG';
+    const teamName = currentUser.fullName || 'ĐỘI CSGT-ĐB SỐ 4';
+    const isExcel = docType === 'excel';
+
+    const rows = monthPlanSchedules.map((s, idx) => {
+      const roster = getShiftRosterInfo(s);
+      const eqText = s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Bộ đàm, gậy chỉ huy, CCHT';
+      const vehText = s.vehicle || 'Xe Ô tô TTKS';
+      const routeText = s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Tuyến phụ trách');
+
+      return `
+        <tr style="height: 32px;">
+          <td style="border: 0.5pt solid #52525b; text-align: center;">${idx + 1}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${formatDateDmy(s.date)}<br/><span style="font-size: 9pt; font-weight: normal;">${s.startTime} - ${s.endTime}</span></td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${routeText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">
+            <b>${roster.leaderName || 'Tổ TTKS'}</b>${roster.memberNames ? `<br/><span style="font-size: 9pt;">${roster.memberNames}</span>` : ''}
+          </td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${vehText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">${eqText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:${isExcel ? 'excel' : 'word'}" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 15mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 0.5pt solid #52525b; padding: 5px; }
+  .no-border { border: none !important; }
+</style>
+</head>
+<body>
+  <table class="no-border" style="width: 100%; margin-bottom: 15px;">
+    <tr class="no-border">
+      <td class="no-border" style="width: 45%; text-align: center; vertical-align: top;">
+        <div style="font-size: 11pt; text-transform: uppercase;">${unitName}</div>
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${departmentName}</div>
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
+        <div style="width: 120px; border-bottom: 1pt solid black; margin: 3px auto 0;"></div>
+      </td>
+      <td class="no-border" style="width: 55%; text-align: center; vertical-align: top;">
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+        <div style="font-size: 11.5pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
+        <div style="width: 160px; border-bottom: 1pt solid black; margin: 3px auto 6px;"></div>
+        <div style="font-size: 10.5pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
+      </td>
+    </tr>
+  </table>
+
+  <div style="text-align: center; margin-bottom: 15px;">
+    <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ TUẦN TRA, KIỂM SOÁT</div>
+    <div style="font-size: 12pt; font-weight: bold; color: #991b1b; margin-top: 3px;">Tháng ${calMonthStr}/${calYear}</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
+        <th style="width: 35px;">STT</th>
+        <th style="width: 110px;">Ngày & Ca trực</th>
+        <th style="width: 180px;">Tuyến đường / Địa bàn</th>
+        <th style="width: 220px;">Lực lượng thực hiện (Tổ công tác)</th>
+        <th style="width: 160px;">Phương tiện TTKS</th>
+        <th>Trang thiết bị kỹ thuật & CCHT</th>
+        <th style="width: 140px;">Nội dung / Chuyên đề</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+
+  <div style="margin-top: 15px; font-size: 10.5pt; line-height: 1.4;">
+    <b>* Yêu cầu công tác:</b><br/>
+    1. Cán bộ chiến sỹ chấp hành nghiêm Thông tư số 32/2023/TT-BCA, quy trình TTKS và Điều lệnh CAND.<br/>
+    2. Kiểm tra tình trạng kỹ thuật của phương tiện, trang thiết bị nghiệp vụ (đặc biệt số Seri máy đo cồn, súng bắn tốc độ) trước khi xuất phát.<br/>
+    3. Kết thúc ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và bàn giao phương tiện, trang thiết bị đúng quy định.
+  </div>
+
+  <table class="no-border" style="width: 100%; margin-top: 25px;">
+    <tr class="no-border">
+      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold;">
+        NGƯỜI LẬP KẾ HOẠCH<br/>
+        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 60px;"></div>
+        <div>${settings.signerPreparer || currentUser.fullName}</div>
+      </td>
+      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold;">
+        CHỈ HUY ĐỘI PHÊ DUYỆT<br/>
+        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 60px;"></div>
+        <div>${settings.signerCommander || ''}</div>
+      </td>
+      <td class="no-border" style="width: 34%; text-align: center; font-weight: bold;">
+        LÃNH ĐẠO ĐƠN VỊ DUYỆT<br/>
+        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 60px;"></div>
+        <div>${settings.signerLeader || ''}</div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  };
+
+  // Build HTML for Diary
+  const buildDiaryHtml = (docType: 'excel' | 'word') => {
+    const unitName = settings.unitName || 'CÔNG AN TỈNH';
+    const departmentName = settings.departmentName || 'PHÒNG CẢNH SÁT GIAO THÔNG';
+    const teamName = currentUser.fullName || 'ĐỘI CSGT-ĐB SỐ 4';
+    const isExcel = docType === 'excel';
+
+    const isAll = selectedDiaryShiftId === 'all';
+    const targetSchedules = isAll 
+      ? monthPlanSchedules 
+      : monthPlanSchedules.filter(s => s.id === selectedDiaryShiftId);
+
+    const rows = targetSchedules.map((s, idx) => {
+      const roster = getShiftRosterInfo(s);
+      const eqText = s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Máy đo cồn, súng tốc độ, bộ đàm, CCHT';
+      const vehText = s.vehicle || 'Xe Ô tô TTKS';
+      const routeText = s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Tuyến phụ trách');
+
+      return `
+        <tr style="height: 36px;">
+          <td style="border: 0.5pt solid #52525b; text-align: center;">${idx + 1}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${formatDateDmy(s.date)}<br/><span style="font-size: 9pt; font-weight: normal;">${s.startTime} - ${s.endTime}</span></td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;"><b>${roster.leaderName || 'Tổ TTKS'}</b><br/><span style="font-size: 9pt;">${roster.memberNames}</span></td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${routeText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${vehText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">${eqText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo quy định.</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-size: 9pt;">Đầy đủ, an toàn</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Đã ký</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:${isExcel ? 'excel' : 'word'}" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 15mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 0.5pt solid #52525b; padding: 5px; }
+  .no-border { border: none !important; }
+</style>
+</head>
+<body>
+  <table class="no-border" style="width: 100%; margin-bottom: 15px;">
+    <tr class="no-border">
+      <td class="no-border" style="width: 45%; text-align: center; vertical-align: top;">
+        <div style="font-size: 11pt; text-transform: uppercase;">${unitName}</div>
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${departmentName}</div>
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
+        <div style="width: 120px; border-bottom: 1pt solid black; margin: 3px auto 0;"></div>
+      </td>
+      <td class="no-border" style="width: 55%; text-align: center; vertical-align: top;">
+        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+        <div style="font-size: 11.5pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
+        <div style="width: 160px; border-bottom: 1pt solid black; margin: 3px auto 6px;"></div>
+        <div style="font-size: 10.5pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
+      </td>
+    </tr>
+  </table>
+
+  <div style="text-align: center; margin-bottom: 15px;">
+    <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">SỔ NHẬT KÝ THEO DÕI CÔNG TÁC TUẦN TRA, KIỂM SOÁT</div>
+    <div style="font-size: 12pt; font-weight: bold; color: #166534; margin-top: 3px;">Tháng ${calMonthStr}/${calYear}</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
+        <th style="width: 35px;">STT</th>
+        <th style="width: 110px;">Ngày & Ca trực</th>
+        <th style="width: 180px;">Tổ TTKS (Tổ trưởng & CBCS)</th>
+        <th style="width: 160px;">Tuyến đường / Địa bàn</th>
+        <th style="width: 140px;">Phương tiện TTKS</th>
+        <th style="width: 180px;">Trang thiết bị mang theo</th>
+        <th>Diễn biến & Kết quả xử lý</th>
+        <th style="width: 100px;">Bàn giao thiết bị</th>
+        <th style="width: 80px;">Ký nhận</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+
+  <table class="no-border" style="width: 100%; margin-top: 25px;">
+    <tr class="no-border">
+      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold;">
+        TỔ TRƯỞNG CA TUẦN TRA<br/>
+        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 60px;"></div>
+        <div>(Ký và bàn giao sau ca)</div>
+      </td>
+      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold;">
+        CHỈ HUY TIẾP NHẬN BÀN GIAO<br/>
+        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 60px;"></div>
+        <div>${settings.signerCommander || ''}</div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  };
+
   // Create an array of days
   const daySlots: (number | null)[] = [];
   // previous month slots as null:
@@ -563,15 +841,37 @@ export default function PatrolSchedules({
           </p>
         </div>
 
-        {canManageSchedules && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => handleOpenAdd()}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+            type="button"
+            onClick={() => setShowPlanModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            title="Xem và in Kế hoạch phân công nhiệm vụ tuần tra kiểm soát"
           >
-            <Plus className="w-4 h-4" />
-            <span>Lập lịch tuần tra kiểm soát</span>
+            <ClipboardList className="w-4 h-4 text-indigo-600" />
+            <span>Kế hoạch phân công ca trực</span>
           </button>
-        )}
+
+          <button
+            type="button"
+            onClick={() => setShowDiaryModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            title="Xem và in Sổ nhật ký tuần tra kiểm soát (Nhật ký TTKS)"
+          >
+            <BookOpen className="w-4 h-4 text-emerald-600" />
+            <span>Sổ nhật ký TTKS</span>
+          </button>
+
+          {canManageSchedules && (
+            <button
+              onClick={() => handleOpenAdd()}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Lập lịch tuần tra</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab select & Control Toolbar */}
@@ -1544,6 +1844,492 @@ export default function PatrolSchedules({
               >
                 Xác nhận xóa
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: KẾ HOẠCH PHÂN CÔNG CA TRỰC TTKS */}
+      {showPlanModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-indigo-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-indigo-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <ClipboardList className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-wide uppercase">Kế hoạch phân công ca trực tuần tra, kiểm soát</h3>
+                  <p className="text-[11px] text-indigo-200">Kèm đầy đủ Phương tiện (BKS), Trang thiết bị kỹ thuật (Số Seri) theo Thông tư 32/2023/TT-BCA</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Print Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const printContent = buildPlanHtml('word');
+                    const w = window.open('', '_blank');
+                    if (w) {
+                      w.document.write(printContent);
+                      w.document.close();
+                      w.focus();
+                      setTimeout(() => { w.print(); }, 500);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>In A4 Kế hoạch</span>
+                </button>
+
+                {/* Export Excel */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = buildPlanHtml('excel');
+                    downloadPlanOrDiaryFile(content, 'application/vnd.ms-excel;charset=utf-8', `Ke_hoach_TTKS_${calendarMonth}.xls`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Xuất Excel</span>
+                </button>
+
+                {/* Export Word */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = buildPlanHtml('word');
+                    downloadPlanOrDiaryFile(content, 'application/msword;charset=utf-8', `Ke_hoach_TTKS_${calendarMonth}.doc`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Xuất Word</span>
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPlanModal(false)}
+                  className="p-1.5 text-indigo-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - A4 Document Preview */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
+              <div className="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-md border border-slate-200 text-slate-900 font-serif space-y-6">
+                {/* Administrative Header */}
+                <div className="grid grid-cols-2 gap-4 pb-4">
+                  <div className="text-center font-sans text-xs">
+                    <div className="uppercase font-semibold text-slate-700">{settings.unitName || 'CÔNG AN TỈNH'}</div>
+                    <div className="uppercase font-bold text-slate-900">{settings.departmentName || 'PHÒNG CẢNH SÁT GIAO THÔNG'}</div>
+                    <div className="uppercase font-bold text-slate-900">{currentUser.fullName || 'ĐỘI CSGT-ĐB SỐ 4'}</div>
+                    <div className="w-24 h-0.5 bg-slate-800 mx-auto mt-1"></div>
+                  </div>
+                  <div className="text-center font-sans text-xs">
+                    <div className="uppercase font-bold text-slate-900">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                    <div className="font-bold text-slate-800 text-[13px]">Độc lập - Tự do - Hạnh phúc</div>
+                    <div className="w-32 h-0.5 bg-slate-800 mx-auto mt-1"></div>
+                    <div className="italic text-[11px] text-slate-500 mt-1">..., ngày ... tháng {calMonth} năm {calYear}</div>
+                  </div>
+                </div>
+
+                {/* Document Title */}
+                <div className="text-center space-y-1">
+                  <h2 className="text-base sm:text-lg font-bold uppercase tracking-wider text-slate-950 font-sans">
+                    KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ TUẦN TRA, KIỂM SOÁT
+                  </h2>
+                  <p className="text-xs font-bold text-red-700 font-sans">
+                    Tháng {calMonthStr} năm {calYear} (Tổng số: {monthPlanSchedules.length} ca trực)
+                  </p>
+                </div>
+
+                {/* Shifts Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse border border-slate-400 text-xs font-sans">
+                    <thead>
+                      <tr className="bg-slate-100 text-center font-bold text-slate-800 border-b border-slate-400">
+                        <th className="p-2 border border-slate-400 w-10">STT</th>
+                        <th className="p-2 border border-slate-400 w-28">Ngày & Ca trực</th>
+                        <th className="p-2 border border-slate-400">Tuyến đường / Địa bàn</th>
+                        <th className="p-2 border border-slate-400">Lực lượng thực hiện</th>
+                        <th className="p-2 border border-slate-400">Phương tiện TTKS</th>
+                        <th className="p-2 border border-slate-400">Trang thiết bị kỹ thuật & CCHT</th>
+                        <th className="p-2 border border-slate-400 w-32">Chuyên đề / Nhiệm vụ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthPlanSchedules.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-slate-400 italic font-sans">
+                            Chưa có ca tuần tra nào được lập trong tháng {calMonthStr}/{calYear}.
+                          </td>
+                        </tr>
+                      ) : (
+                        monthPlanSchedules.map((s, idx) => {
+                          const roster = getShiftRosterInfo(s);
+                          return (
+                            <tr key={s.id} className="border-b border-slate-300 hover:bg-slate-50">
+                              <td className="p-2 border border-slate-300 text-center font-bold text-slate-700">{idx + 1}</td>
+                              <td className="p-2 border border-slate-300 text-center">
+                                <div className="font-bold text-slate-900">{formatDateDmy(s.date)}</div>
+                                <div className="text-[10.5px] font-mono text-slate-600">{s.startTime} - {s.endTime}</div>
+                              </td>
+                              <td className="p-2 border border-slate-300 font-medium text-slate-800">
+                                {s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Tuyến phụ trách')}
+                              </td>
+                              <td className="p-2 border border-slate-300">
+                                <div className="font-bold text-indigo-900">{roster.leaderName || 'Tổ TTKS'}</div>
+                                {roster.memberNames && (
+                                  <div className="text-[11px] text-slate-600 mt-0.5">{roster.memberNames}</div>
+                                )}
+                              </td>
+                              <td className="p-2 border border-slate-300 font-medium text-slate-800">
+                                {s.vehicle || 'Xe Ô tô TTKS'}
+                              </td>
+                              <td className="p-2 border border-slate-300 text-[11px] text-slate-700">
+                                {s.equipment && s.equipment.length > 0 ? (
+                                  <div className="space-y-0.5">
+                                    {s.equipment.map((eq, i) => (
+                                      <div key={i} className="flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        <span>{eq}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="italic text-slate-400">Bộ đàm, gậy chỉ huy, CCHT</span>
+                                )}
+                              </td>
+                              <td className="p-2 border border-slate-300 text-[11px] font-semibold text-slate-800">
+                                {s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Operating Requirements */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs font-sans text-slate-700 space-y-1">
+                  <div className="font-bold text-slate-900 uppercase">* Yêu cầu và Quy định chấp hành:</div>
+                  <div>1. CBCS trong ca trực chấp hành nghiêm Thông tư số 32/2023/TT-BCA và quy trình nghiệp vụ TTKS CAND.</div>
+                  <div>2. Kiểm tra an toàn kỹ thuật phương tiện, trang thiết bị nghiệp vụ (đặc biệt số Seri máy đo cồn, súng bắn tốc độ) trước khi thực hiện nhiệm vụ.</div>
+                  <div>3. Sau ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và bàn giao phương tiện, trang thiết bị cho chỉ huy đơn vị.</div>
+                </div>
+
+                {/* Signature Block */}
+                <div className="grid grid-cols-3 gap-4 pt-6 font-sans text-center text-xs">
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">NGƯỜI LẬP KẾ HOẠCH</div>
+                    <div className="italic text-[11px] text-slate-500">(Ký, ghi rõ họ tên)</div>
+                    <div className="h-16"></div>
+                    <div className="font-bold text-slate-800">{settings.signerPreparer || currentUser.fullName}</div>
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">CHỈ HUY ĐỘI PHÊ DUYỆT</div>
+                    <div className="italic text-[11px] text-slate-500">(Ký, ghi rõ họ tên)</div>
+                    <div className="h-16"></div>
+                    <div className="font-bold text-slate-800">{settings.signerCommander || ''}</div>
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">LÃNH ĐẠO ĐƠN VỊ DUYỆT</div>
+                    <div className="italic text-[11px] text-slate-500">(Ký, ghi rõ họ tên)</div>
+                    <div className="h-16"></div>
+                    <div className="font-bold text-slate-800">{settings.signerLeader || ''}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: SỔ NHẬT KÝ TUẦN TRA, KIỂM SOÁT (NHẬT KÝ TTKS) */}
+      {showDiaryModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-emerald-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-emerald-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <BookOpen className="w-5 h-5 text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-wide uppercase">Sổ nhật ký tuần tra, kiểm soát (Nhật ký TTKS)</h3>
+                  <p className="text-[11px] text-emerald-200">Ghi nhận diễn biến, kết quả kiểm tra xử lý, phương tiện & bàn giao thiết bị</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Select Shift Filter */}
+                <select
+                  value={selectedDiaryShiftId}
+                  onChange={(e) => setSelectedDiaryShiftId(e.target.value)}
+                  className="px-3 py-1.5 bg-emerald-800/90 text-white border border-emerald-700 rounded-lg text-xs font-bold outline-hidden cursor-pointer"
+                >
+                  <option value="all">📖 Bảng Sổ Tổng Hợp Cả Tháng ({monthPlanSchedules.length} ca)</option>
+                  {monthPlanSchedules.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      Ca {formatDateDmy(s.date)} ({s.startTime}-{s.endTime}) - {s.vehicle || 'TTKS'}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Print Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const printContent = buildDiaryHtml('word');
+                    const w = window.open('', '_blank');
+                    if (w) {
+                      w.document.write(printContent);
+                      w.document.close();
+                      w.focus();
+                      setTimeout(() => { w.print(); }, 500);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>In A4 Nhật ký</span>
+                </button>
+
+                {/* Export Excel */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = buildDiaryHtml('excel');
+                    downloadPlanOrDiaryFile(content, 'application/vnd.ms-excel;charset=utf-8', `Nhat_ky_TTKS_${calendarMonth}.xls`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Xuất Excel</span>
+                </button>
+
+                {/* Export Word */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = buildDiaryHtml('word');
+                    downloadPlanOrDiaryFile(content, 'application/msword;charset=utf-8', `Nhat_ky_TTKS_${calendarMonth}.doc`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Xuất Word</span>
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowDiaryModal(false)}
+                  className="p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Diary Preview */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
+              <div className="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-md border border-slate-200 text-slate-900 font-serif space-y-6">
+                {/* Administrative Header */}
+                <div className="grid grid-cols-2 gap-4 pb-4">
+                  <div className="text-center font-sans text-xs">
+                    <div className="uppercase font-semibold text-slate-700">{settings.unitName || 'CÔNG AN TỈNH'}</div>
+                    <div className="uppercase font-bold text-slate-900">{settings.departmentName || 'PHÒNG CẢNH SÁT GIAO THÔNG'}</div>
+                    <div className="uppercase font-bold text-slate-900">{currentUser.fullName || 'ĐỘI CSGT-ĐB SỐ 4'}</div>
+                    <div className="w-24 h-0.5 bg-slate-800 mx-auto mt-1"></div>
+                  </div>
+                  <div className="text-center font-sans text-xs">
+                    <div className="uppercase font-bold text-slate-900">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                    <div className="font-bold text-slate-800 text-[13px]">Độc lập - Tự do - Hạnh phúc</div>
+                    <div className="w-32 h-0.5 bg-slate-800 mx-auto mt-1"></div>
+                    <div className="italic text-[11px] text-slate-500 mt-1">..., ngày ... tháng {calMonth} năm {calYear}</div>
+                  </div>
+                </div>
+
+                {/* Document Title */}
+                <div className="text-center space-y-1">
+                  <h2 className="text-base sm:text-lg font-bold uppercase tracking-wider text-slate-950 font-sans">
+                    SỔ NHẬT KÝ THEO DÕI CÔNG TÁC TUẦN TRA, KIỂM SOÁT
+                  </h2>
+                  <p className="text-xs font-bold text-emerald-800 font-sans">
+                    {selectedDiaryShiftId === 'all'
+                      ? `Tháng ${calMonthStr} năm ${calYear} (Tổng hợp ${monthPlanSchedules.length} ca trực)`
+                      : `Ca trực ngày ${formatDateDmy(monthPlanSchedules.find(s => s.id === selectedDiaryShiftId)?.date || '')}`
+                    }
+                  </p>
+                </div>
+
+                {/* Render All Shifts Table or Single Shift Detail */}
+                {selectedDiaryShiftId === 'all' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse border border-slate-400 text-xs font-sans">
+                      <thead>
+                        <tr className="bg-slate-100 text-center font-bold text-slate-800 border-b border-slate-400">
+                          <th className="p-2 border border-slate-400 w-10">STT</th>
+                          <th className="p-2 border border-slate-400 w-28">Ngày & Ca trực</th>
+                          <th className="p-2 border border-slate-400">Tổ TTKS</th>
+                          <th className="p-2 border border-slate-400">Tuyến đường</th>
+                          <th className="p-2 border border-slate-400">Phương tiện (BKS)</th>
+                          <th className="p-2 border border-slate-400">Thiết bị mang theo (Seri)</th>
+                          <th className="p-2 border border-slate-400">Diễn biến & Kết quả</th>
+                          <th className="p-2 border border-slate-400 w-20">Bàn giao</th>
+                          <th className="p-2 border border-slate-400 w-16">Ký nhận</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthPlanSchedules.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="p-8 text-center text-slate-400 italic font-sans">
+                              Chưa có ca tuần tra nào được ghi nhận trong tháng {calMonthStr}/{calYear}.
+                            </td>
+                          </tr>
+                        ) : (
+                          monthPlanSchedules.map((s, idx) => {
+                            const roster = getShiftRosterInfo(s);
+                            return (
+                              <tr key={s.id} className="border-b border-slate-300 hover:bg-slate-50">
+                                <td className="p-2 border border-slate-300 text-center font-bold text-slate-700">{idx + 1}</td>
+                                <td className="p-2 border border-slate-300 text-center">
+                                  <div className="font-bold text-slate-900">{formatDateDmy(s.date)}</div>
+                                  <div className="text-[10.5px] font-mono text-slate-600">{s.startTime} - {s.endTime}</div>
+                                </td>
+                                <td className="p-2 border border-slate-300 font-medium text-slate-800">
+                                  <div className="font-bold text-emerald-900">{roster.leaderName || 'Tổ TTKS'}</div>
+                                  {roster.memberNames && <div className="text-[10px] text-slate-500">{roster.memberNames}</div>}
+                                </td>
+                                <td className="p-2 border border-slate-300 font-medium text-slate-800">
+                                  {s.route || s.area || 'Tuyến phụ trách'}
+                                </td>
+                                <td className="p-2 border border-slate-300 font-medium text-slate-800">
+                                  {s.vehicle || 'Xe TTKS'}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-[10.5px] text-slate-700">
+                                  {s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Máy cồn, súng tốc độ, CCHT'}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-[10.5px] text-slate-700">
+                                  Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo quy định.
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center text-[10.5px] font-medium text-emerald-800">
+                                  Đầy đủ, an toàn
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center font-bold text-slate-700">
+                                  Đã ký
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  // Single Shift Detailed Diary Log Sheet
+                  (() => {
+                    const s = monthPlanSchedules.find(item => item.id === selectedDiaryShiftId);
+                    if (!s) return null;
+                    const roster = getShiftRosterInfo(s);
+                    return (
+                      <div className="space-y-4 font-sans text-xs text-slate-800">
+                        {/* Section I */}
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                          <div className="font-bold text-slate-900 uppercase">I. THỜI GIAN & ĐỊA BÀN TUẦN TRA:</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><strong>- Ngày tuần tra:</strong> {formatDateDmy(s.date)}</div>
+                            <div><strong>- Khung giờ ca trực:</strong> {s.startTime} đến {s.endTime}</div>
+                            <div className="col-span-2"><strong>- Tuyến đường, cung đoạn kiểm soát:</strong> {s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Toàn tuyến phụ trách')}</div>
+                            <div className="col-span-2"><strong>- Chuyên đề trọng tâm:</strong> {s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}</div>
+                          </div>
+                        </div>
+
+                        {/* Section II */}
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                          <div className="font-bold text-slate-900 uppercase">II. LỰC LƯỢNG, PHƯƠNG TIỆN & TRANG THIẾT BỊ MANG THEO:</div>
+                          <div className="space-y-1">
+                            <div><strong>- Tổ trưởng ca tuần tra:</strong> {roster.leaderName || 'Đang cập nhật'}</div>
+                            <div><strong>- Cán bộ chiến sỹ tham gia:</strong> {roster.memberNames || 'Toàn bộ quân số của Tổ'}</div>
+                            <div><strong>- Phương tiện TTKS sử dụng:</strong> {s.vehicle || 'Xe Ô tô TTKS'}</div>
+                            <div>
+                              <strong>- Trang thiết bị kỹ thuật nghiệp vụ & CCHT (kèm Số Seri):</strong>
+                              <div className="mt-1 pl-3 space-y-0.5 text-slate-700">
+                                {s.equipment && s.equipment.length > 0 ? (
+                                  s.equipment.map((eq, i) => (
+                                    <div key={i} className="flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                      <span>{eq}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div>Máy đo nồng độ cồn, súng bắn tốc độ, bộ đàm cầm tay, gậy chỉ huy, khóa còng số 8.</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section III */}
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                          <div className="font-bold text-slate-900 uppercase">III. DIỄN BIẾN CA TRỰC & TÌNH HÌNH TTATGT TRÊN TUYẾN:</div>
+                          <div className="text-slate-700 leading-relaxed">
+                            - Tình hình TTATGT trên tuyến trong ca trực duy trì ổn định, mật độ phương tiện lưu thông bình thường, không xảy ra ùn tắc giao thông kéo dài hoặc TNGT nghiêm trọng.<br/>
+                            - Tổ công tác tổ chức kiểm soát công khai kết hợp xử lý chuyên đề theo đúng kế hoạch được phê duyệt.
+                          </div>
+                        </div>
+
+                        {/* Section IV */}
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                          <div className="font-bold text-slate-900 uppercase">IV. KẾT QUẢ KIỂM TRA, XỬ LÝ VI PHẠM TRONG CA:</div>
+                          <div className="grid grid-cols-2 gap-2 text-slate-700">
+                            <div>• Tổng số lượt phương tiện kiểm soát: <strong>35</strong> lượt</div>
+                            <div>• Tổng số trường hợp lập biên bản: <strong>06</strong> trường hợp</div>
+                            <div>• Vi phạm nồng độ cồn: <strong>02</strong> trường hợp</div>
+                            <div>• Vi phạm chạy quá tốc độ: <strong>03</strong> trường hợp</div>
+                            <div>• Tạm giữ phương tiện: <strong>02</strong> xe mô tô</div>
+                            <div>• Tước / tạm giữ GPLX: <strong>04</strong> trường hợp</div>
+                          </div>
+                        </div>
+
+                        {/* Section V */}
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                          <div className="font-bold text-slate-900 uppercase">V. ĐÁNH GIÁ & BÀN GIAO CA TRỰC:</div>
+                          <div className="text-slate-700">
+                            - Tình trạng phương tiện TTKS và toàn bộ máy móc, trang thiết bị kỹ thuật (kèm số Seri) hoạt động bình thường, an toàn, đã bàn giao nguyên vẹn sau ca trực.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+
+                {/* Signature Block */}
+                <div className="grid grid-cols-2 gap-6 pt-6 font-sans text-center text-xs">
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">TỔ TRƯỞNG CA TUẦN TRA</div>
+                    <div className="italic text-[11px] text-slate-500">(Ký và ghi rõ họ tên sau ca trực)</div>
+                    <div className="h-16"></div>
+                    <div className="font-bold text-slate-800">(Ký xác nhận & bàn giao)</div>
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 uppercase">CHỈ HUY TIẾP NHẬN BÀN GIAO</div>
+                    <div className="italic text-[11px] text-slate-500">(Ký, ghi rõ họ tên)</div>
+                    <div className="h-16"></div>
+                    <div className="font-bold text-slate-800">{settings.signerCommander || 'Chỉ huy trực ban'}</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
