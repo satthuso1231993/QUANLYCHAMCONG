@@ -1497,3 +1497,52 @@ export default function SecurityAndSettings({
     </div>
   );
 }
+{/* Trong form modal Thêm/Sửa tài khoản */}
+<div className="space-y-4">
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Vai trò / Cấp tài khoản
+    </label>
+    <select
+      value={roleInput}
+      onChange={(e) => {
+        setRoleInput(e.target.value as UserRole);
+        setManagedTeamIdInput(''); // Reset lại đơn vị khi đổi vai trò
+      }}
+      className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+    >
+      <option value="admin">Quản trị viên (Toàn bộ dữ liệu)</option>
+      <option value="doi">Cấp Đội (Quản lý Đội & các Tổ trực thuộc)</option>
+      <option value="to_dia_ban">Cấp Tổ địa bàn (Quản lý riêng Tổ)</option>
+    </select>
+  </div>
+
+  {/* Chỉ hiển thị mục chọn Đơn vị khi không phải là Admin */}
+  {roleInput !== 'admin' && (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        {roleInput === 'doi' ? 'Chọn Đội phụ trách:' : 'Chọn Tổ địa bàn phụ trách:'}
+      </label>
+      <select
+        value={managedTeamIdInput}
+        onChange={(e) => setManagedTeamIdInput(e.target.value)}
+        required
+        className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+      >
+        <option value="">-- Vui lòng chọn đơn vị --</option>
+        {teams
+          .filter((team) => (team.teamType || 'doi') === roleInput)
+          .map((team) => {
+            const parent = team.parentTeamId
+              ? teams.find((p) => p.id === team.parentTeamId)
+              : null;
+            return (
+              <option key={team.id} value={team.id}>
+                {team.name} {parent ? `(Trực thuộc: ${parent.name})` : ''}
+              </option>
+            );
+          })}
+      </select>
+    </div>
+  )}
+</div>
