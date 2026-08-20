@@ -19,6 +19,9 @@ interface SecurityAndSettingsProps {
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   officers: Officer[];
   teams: Team[];
+  accountSettings?: Record<string, SystemSettings>;
+  setAccountSettings?: React.Dispatch<React.SetStateAction<Record<string, SystemSettings>>>;
+  onSaveAccountSettings?: (accountId: string, settings: SystemSettings) => Promise<void>;
 }
 
 export default function SecurityAndSettings({
@@ -35,6 +38,9 @@ export default function SecurityAndSettings({
   setUsers,
   officers,
   teams,
+  accountSettings = {},
+  setAccountSettings,
+  onSaveAccountSettings,
 }: SecurityAndSettingsProps) {
   const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
   const selectableTeams = React.useMemo(() => teams.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')), [teams]);
@@ -43,58 +49,125 @@ export default function SecurityAndSettings({
   const [logSearch, setLogSearch] = useState('');
   const [logFilter, setLogFilter] = useState<'all' | 'login' | 'edit' | 'other'>('all');
 
+  // Selected account target for rates configuration (e.g. 'default' or 'user_<id>')
+  const [selectedAccountTarget, setSelectedAccountTarget] = useState<string>(
+    currentUser.role === 'admin' ? 'default' : `user_${currentUser.id}`
+  );
+
+  const getTargetSettings = (targetId: string): SystemSettings => {
+    if (accountSettings && accountSettings[targetId]) return accountSettings[targetId];
+    if (accountSettings && accountSettings['default']) return accountSettings['default'];
+    return settings;
+  };
+
+  const initialTargetConfig = getTargetSettings(currentUser.role === 'admin' ? 'default' : `user_${currentUser.id}`);
+
   // Rate fields
-  const [rationRate, setRationRate] = useState(settings.rationRate);
-  const [nightShiftRate, setNightShiftRate] = useState(settings.nightShiftRate);
-  const [departmentName, setDepartmentName] = useState(settings.departmentName);
-  const [unitName, setUnitName] = useState(settings.unitName);
+  const [rationRate, setRationRate] = useState(initialTargetConfig.rationRate);
+  const [nightShiftRate, setNightShiftRate] = useState(initialTargetConfig.nightShiftRate);
+  const [departmentName, setDepartmentName] = useState(initialTargetConfig.departmentName);
+  const [unitName, setUnitName] = useState(initialTargetConfig.unitName);
   const [overnightShiftAttendanceMode, setOvernightShiftAttendanceMode] = useState<OvernightShiftAttendanceMode>(
-    settings.overnightShiftAttendanceMode || 'standard'
+    initialTargetConfig.overnightShiftAttendanceMode || 'standard'
   );
 
   // Symbol fields with safe fallbacks
-  const [symbolWork, setSymbolWork] = useState(settings.symbolWork || 'x');
-  const [symbolMission, setSymbolMission] = useState(settings.symbolMission || 'Ct');
-  const [symbolStudy, setSymbolStudy] = useState(settings.symbolStudy || 'H');
-  const [symbolLeave, setSymbolLeave] = useState(settings.symbolLeave || 'P');
-  const [symbolPaternityLeave, setSymbolPaternityLeave] = useState(settings.symbolPaternityLeave || 'NVS');
-  const [symbolCompensation, setSymbolCompensation] = useState(settings.symbolCompensation || 'Nb');
-  const [symbolMaternity, setSymbolMaternity] = useState(settings.symbolMaternity || 'Ts');
-  const [symbolRest, setSymbolRest] = useState(settings.symbolRest || 'Nd');
+  const [symbolWork, setSymbolWork] = useState(initialTargetConfig.symbolWork || 'x');
+  const [symbolMission, setSymbolMission] = useState(initialTargetConfig.symbolMission || 'Ct');
+  const [symbolStudy, setSymbolStudy] = useState(initialTargetConfig.symbolStudy || 'H');
+  const [symbolLeave, setSymbolLeave] = useState(initialTargetConfig.symbolLeave || 'P');
+  const [symbolPaternityLeave, setSymbolPaternityLeave] = useState(initialTargetConfig.symbolPaternityLeave || 'NVS');
+  const [symbolCompensation, setSymbolCompensation] = useState(initialTargetConfig.symbolCompensation || 'Nb');
+  const [symbolMaternity, setSymbolMaternity] = useState(initialTargetConfig.symbolMaternity || 'Ts');
+  const [symbolRest, setSymbolRest] = useState(initialTargetConfig.symbolRest || 'Nd');
 
   // Signer fields with safe fallbacks
-  const [signerPreparer, setSignerPreparer] = useState(settings.signerPreparer || '');
-  const [signerCommander, setSignerCommander] = useState(settings.signerCommander || '');
-  const [signerLeader, setSignerLeader] = useState(settings.signerLeader || '');
-  const [signerPreparerTitle, setSignerPreparerTitle] = useState(settings.signerPreparerTitle || 'NGƯỜI CHẤM CÔNG');
-  const [signerCommanderTitle, setSignerCommanderTitle] = useState(settings.signerCommanderTitle || 'CHỈ HUY ĐỘI');
-  const [signerCommanderSubTitle, setSignerCommanderSubTitle] = useState(settings.signerCommanderSubTitle || 'ĐỘI TRƯỞNG');
-  const [signerLeaderTitle, setSignerLeaderTitle] = useState(settings.signerLeaderTitle || 'LÃNH ĐẠO ĐƠN VỊ');
-  const [signerLeaderActingTitle, setSignerLeaderActingTitle] = useState(settings.signerLeaderActingTitle || 'KT. TRƯỞNG PHÒNG');
-  const [signerLeaderSubTitle, setSignerLeaderSubTitle] = useState(settings.signerLeaderSubTitle || 'PHÓ TRƯỞNG PHÒNG');
-  const [signerLeaderSealTitle, setSignerLeaderSealTitle] = useState(settings.signerLeaderSealTitle || 'TRƯỞNG PHÒNG CSGT');
-  const [maxNightShiftCompensationTurns, setMaxNightShiftCompensationTurns] = useState(settings.maxNightShiftCompensationTurns || 10);
-  const [paternityLeaveMaxDays, setPaternityLeaveMaxDays] = useState(settings.paternityLeaveMaxDays || 14);
+  const [signerPreparer, setSignerPreparer] = useState(initialTargetConfig.signerPreparer || '');
+  const [signerCommander, setSignerCommander] = useState(initialTargetConfig.signerCommander || '');
+  const [signerLeader, setSignerLeader] = useState(initialTargetConfig.signerLeader || '');
+  const [signerPreparerTitle, setSignerPreparerTitle] = useState(initialTargetConfig.signerPreparerTitle || 'NGƯỜI CHẤM CÔNG');
+  const [signerCommanderTitle, setSignerCommanderTitle] = useState(initialTargetConfig.signerCommanderTitle || 'CHỈ HUY ĐỘI');
+  const [signerCommanderSubTitle, setSignerCommanderSubTitle] = useState(initialTargetConfig.signerCommanderSubTitle || 'ĐỘI TRƯỞNG');
+  const [signerLeaderTitle, setSignerLeaderTitle] = useState(initialTargetConfig.signerLeaderTitle || 'LÃNH ĐẠO ĐƠN VỊ');
+  const [signerLeaderActingTitle, setSignerLeaderActingTitle] = useState(initialTargetConfig.signerLeaderActingTitle || 'KT. TRƯỞNG PHÒNG');
+  const [signerLeaderSubTitle, setSignerLeaderSubTitle] = useState(initialTargetConfig.signerLeaderSubTitle || 'PHÓ TRƯỞNG PHÒNG');
+  const [signerLeaderSealTitle, setSignerLeaderSealTitle] = useState(initialTargetConfig.signerLeaderSealTitle || 'TRƯỞNG PHÒNG CSGT');
+  const [maxNightShiftCompensationTurns, setMaxNightShiftCompensationTurns] = useState(initialTargetConfig.maxNightShiftCompensationTurns || 10);
+  const [paternityLeaveMaxDays, setPaternityLeaveMaxDays] = useState(initialTargetConfig.paternityLeaveMaxDays || 14);
   const [paternityLeaveEligibility, setPaternityLeaveEligibility] = useState(
-    settings.paternityLeaveEligibility ||
+    initialTargetConfig.paternityLeaveEligibility ||
       'Áp dụng cho CBCS nam đang tham gia BHXH khi vợ sinh con, có đủ hồ sơ chứng minh theo quy định.'
   );
   const [paternityLeaveRegistrationProcess, setPaternityLeaveRegistrationProcess] = useState(
-    settings.paternityLeaveRegistrationProcess ||
+    initialTargetConfig.paternityLeaveRegistrationProcess ||
       'CBCS lập đề nghị nghỉ NVS, cập nhật hệ thống và nộp giấy tờ xác nhận cho chỉ huy trực tiếp.'
   );
   const [paternityLeaveApprovalProcess, setPaternityLeaveApprovalProcess] = useState(
-    settings.paternityLeaveApprovalProcess ||
+    initialTargetConfig.paternityLeaveApprovalProcess ||
       'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ và trình lãnh đạo phê duyệt trước khi khóa tháng.'
   );
   const [paternityLeavePayrollPolicy, setPaternityLeavePayrollPolicy] = useState(
-    settings.paternityLeavePayrollPolicy ||
+    initialTargetConfig.paternityLeavePayrollPolicy ||
       'Ngày nghỉ NVS không tính định lượng tuần tra, không phát sinh tiền làm đêm; chế độ chi trả thực hiện theo hồ sơ BHXH.'
   );
   const [paternityLeaveAttendancePolicy, setPaternityLeaveAttendancePolicy] = useState(
-    settings.paternityLeaveAttendancePolicy ||
+    initialTargetConfig.paternityLeaveAttendancePolicy ||
       'Ngày NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu cùng ngày có khai báo nghỉ thủ công.'
   );
+
+  const loadSettingsToForm = (s: SystemSettings) => {
+    setRationRate(s.rationRate);
+    setNightShiftRate(s.nightShiftRate);
+    setDepartmentName(s.departmentName);
+    setUnitName(s.unitName);
+    setOvernightShiftAttendanceMode(s.overnightShiftAttendanceMode || 'standard');
+    setSymbolWork(s.symbolWork || 'x');
+    setSymbolMission(s.symbolMission || 'Ct');
+    setSymbolStudy(s.symbolStudy || 'H');
+    setSymbolLeave(s.symbolLeave || 'P');
+    setSymbolPaternityLeave(s.symbolPaternityLeave || 'NVS');
+    setSymbolCompensation(s.symbolCompensation || 'Nb');
+    setSymbolMaternity(s.symbolMaternity || 'Ts');
+    setSymbolRest(s.symbolRest || 'Nd');
+    setSignerPreparer(s.signerPreparer || '');
+    setSignerCommander(s.signerCommander || '');
+    setSignerLeader(s.signerLeader || '');
+    setSignerPreparerTitle(s.signerPreparerTitle || 'NGƯỜI CHẤM CÔNG');
+    setSignerCommanderTitle(s.signerCommanderTitle || 'CHỈ HUY ĐỘI');
+    setSignerCommanderSubTitle(s.signerCommanderSubTitle || 'ĐỘI TRƯỞNG');
+    setSignerLeaderTitle(s.signerLeaderTitle || 'LÃNH ĐẠO ĐƠN VỊ');
+    setSignerLeaderActingTitle(s.signerLeaderActingTitle || 'KT. TRƯỞNG PHÒNG');
+    setSignerLeaderSubTitle(s.signerLeaderSubTitle || 'PHÓ TRƯỞNG PHÒNG');
+    setSignerLeaderSealTitle(s.signerLeaderSealTitle || 'TRƯỞNG PHÒNG CSGT');
+    setMaxNightShiftCompensationTurns(s.maxNightShiftCompensationTurns || 10);
+    setPaternityLeaveMaxDays(s.paternityLeaveMaxDays || 14);
+    setPaternityLeaveEligibility(
+      s.paternityLeaveEligibility ||
+        'Áp dụng cho CBCS nam đang tham gia BHXH khi vợ sinh con, có đủ hồ sơ chứng minh theo quy định.'
+    );
+    setPaternityLeaveRegistrationProcess(
+      s.paternityLeaveRegistrationProcess ||
+        'CBCS lập đề nghị nghỉ NVS, cập nhật hệ thống và nộp giấy tờ xác nhận cho chỉ huy trực tiếp.'
+    );
+    setPaternityLeaveApprovalProcess(
+      s.paternityLeaveApprovalProcess ||
+        'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ và trình lãnh đạo phê duyệt trước khi khóa tháng.'
+    );
+    setPaternityLeavePayrollPolicy(
+      s.paternityLeavePayrollPolicy ||
+        'Ngày nghỉ NVS không tính định lượng tuần tra, không phát sinh tiền làm đêm; chế độ chi trả thực hiện theo hồ sơ BHXH.'
+    );
+    setPaternityLeaveAttendancePolicy(
+      s.paternityLeaveAttendancePolicy ||
+        'Ngày NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu cùng ngày có khai báo nghỉ thủ công.'
+    );
+  };
+
+  const handleTargetAccountChange = (newTarget: string) => {
+    setSelectedAccountTarget(newTarget);
+    const targetConfig = getTargetSettings(newTarget);
+    loadSettingsToForm(targetConfig);
+  };
 
   // Password fields
   const [oldPassword, setOldPassword] = useState('');
@@ -338,9 +411,9 @@ export default function SecurityAndSettings({
   });
 
   // Save Settings
-  const handleSaveRates = (e: React.FormEvent) => {
+  const handleSaveRates = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSettings({
+    const newConfig: SystemSettings = {
       rationRate,
       nightShiftRate,
       departmentName,
@@ -371,12 +444,39 @@ export default function SecurityAndSettings({
       paternityLeaveApprovalProcess,
       paternityLeavePayrollPolicy,
       paternityLeaveAttendancePolicy,
-    });
+    };
+
+    if (setAccountSettings) {
+      setAccountSettings(prev => ({
+        ...prev,
+        [selectedAccountTarget]: newConfig,
+      }));
+    }
+
+    if (selectedAccountTarget === 'default' || selectedAccountTarget === `user_${currentUser.id}` || selectedAccountTarget === `user_${currentUser.username.toLowerCase()}`) {
+      setSettings(newConfig);
+    }
+
+    if (onSaveAccountSettings) {
+      try {
+        await onSaveAccountSettings(selectedAccountTarget, newConfig);
+      } catch (err) {
+        console.error('Error saving account settings to Supabase:', err);
+      }
+    }
+
+    const targetLabel = selectedAccountTarget === 'default' 
+      ? 'Toàn hệ thống (Mặc định)' 
+      : (() => {
+          const u = users.find(user => `user_${user.id}` === selectedAccountTarget || `user_${user.username.toLowerCase()}` === selectedAccountTarget);
+          return u ? `${u.fullName} (${u.username})` : selectedAccountTarget;
+        })();
+
     addLog(
       'Thay đổi cấu hình',
-      `Cập nhật mức định lượng: ${rationRate.toLocaleString()}đ, mức làm đêm: ${nightShiftRate.toLocaleString()}đ, số lượt tối đa hưởng làm đêm: ${maxNightShiftCompensationTurns}, cấu hình nghỉ vợ sinh tối đa ${paternityLeaveMaxDays} ngày, phương án tính ca qua đêm: ${overnightShiftAttendanceMode === 'standard' ? 'Tính chuẩn' : overnightShiftAttendanceMode === 'overnight_only_next_day' ? 'Chỉ tính cho ngày hôm sau' : 'Chia 0.5-0.5 (<=22:00 và >02:00)'}, các ký hiệu chấm công và thông tin người ký phê duyệt.`
+      `Đã cập nhật định mức riêng cho [${targetLabel}]: Mức ăn ${rationRate.toLocaleString()}đ, mức làm đêm ${nightShiftRate.toLocaleString()}đ, số lượt tối đa hưởng làm đêm: ${maxNightShiftCompensationTurns}, người lập ${signerPreparer || 'chưa đặt'}, chỉ huy ${signerCommander || 'chưa đặt'}, lãnh đạo ${signerLeader || 'chưa đặt'}.`
     );
-    alert('Cập nhật cấu hình hệ thống thành công!');
+    alert(`Cập nhật cấu hình định mức cho [${targetLabel}] thành công!`);
   };
 
   // Change Password
@@ -506,9 +606,49 @@ export default function SecurityAndSettings({
           {/* TAB 1: RATES AND ORG NAMES */}
           {activeTab === 'rates' && (
             <form onSubmit={handleSaveRates} className="space-y-5">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <Settings className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Cấu hình thông tin cơ quan & Mức chi phí</h3>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">Cấu hình thông tin cơ quan & Mức chi phí</h3>
+                </div>
+                <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md">
+                  Lưu theo từng tài khoản
+                </span>
+              </div>
+
+              {/* ACCOUNT TARGET SELECTOR */}
+              <div className="p-4 bg-linear-to-r from-blue-50/80 to-indigo-50/60 rounded-xl border border-blue-200/80 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-black text-blue-900">
+                      🏢 Tài khoản / Đơn vị áp dụng cấu hình này:
+                    </label>
+                    <p className="text-[11px] text-blue-700/80 font-medium">
+                      Mỗi tài khoản có thể lưu định mức tiền ăn, bồi dưỡng làm đêm và chức danh người ký riêng biệt.
+                    </p>
+                  </div>
+
+                  {currentUser.role === 'admin' ? (
+                    <select
+                      value={selectedAccountTarget}
+                      onChange={(e) => handleTargetAccountChange(e.target.value)}
+                      className="px-3 py-2 bg-white border border-blue-300 rounded-lg text-xs font-bold text-blue-900 shadow-xs outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer min-w-[240px]"
+                    >
+                      <option value="default">🌐 Cấu hình Mặc định Toàn hệ thống</option>
+                      <optgroup label="Tài khoản cán bộ / Đội / Tổ:">
+                        {users.map(u => (
+                          <option key={u.id} value={`user_${u.id}`}>
+                            👤 {u.fullName} ({u.username}) - [{getUserRoleLabel(u.role)}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  ) : (
+                    <span className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-black text-blue-900 shadow-xs">
+                      👤 {currentUser.fullName} ({currentUser.username})
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

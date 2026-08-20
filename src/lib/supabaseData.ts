@@ -26,6 +26,7 @@ export type AppStatePayload = {
   approvals: Approval[];
   auditLogs: AuditLog[];
   settings: SystemSettings | null;
+  accountSettings?: Record<string, SystemSettings>;
 };
 
 const ensureClient = () => {
@@ -378,10 +379,10 @@ const toSettings = (row: any): SystemSettings => ({
   paternityLeaveMaxDays: 14,
 });
 
-const fromSettings = (row: SystemSettings) => {
+const fromSettingsWithId = (id: string, row: SystemSettings) => {
   const now = new Date().toISOString();
   return {
-    id: 'default',
+    id: id || 'default',
     ration_rate: row.rationRate,
     night_shift_rate: row.nightShiftRate,
     department_name: row.departmentName,
@@ -409,6 +410,8 @@ const fromSettings = (row: SystemSettings) => {
     updated_at: now,
   };
 };
+
+const fromSettings = (row: SystemSettings) => fromSettingsWithId('default', row);
 
 /**
  * Replace table contents with safe chunked upsert and delete operations
@@ -472,13 +475,23 @@ export const loadAppStateFromSupabase = async (): Promise<AppStatePayload> => {
     client.from('night_shift_records').select('*').order('date'),
     client.from('approvals').select('*').order('month_string'),
     client.from('audit_logs').select('*').order('timestamp', { ascending: false }),
-    client.from('system_settings').select('*').eq('id', 'default').maybeSingle(),
+    client.from('system_settings').select('*').order('id'),
   ]);
 
   const results = [usersRes, officersRes, teamsRes, schedulesRes, attendanceRes, rationsRes, nightShiftsRes, approvalsRes, auditLogsRes];
   const failed = results.find((result) => result.error);
   if (failed?.error) throw failed.error;
   if (settingsRes.error) throw settingsRes.error;
+
+  const accountSettingsMap: Record<string, SystemSettings> = {};
+  let defaultSettings: SystemSettings | null = null;
+  for (const sRow of (settingsRes.data || [])) {
+    const sObj = toSettings(sRow);
+    accountSettingsMap[sRow.id] = sObj;
+    if (sRow.id === 'default' || !defaultSettings) {
+      defaultSettings = sObj;
+    }
+  }
 
   return {
     users: (usersRes.data || []).map(toUser),
@@ -490,7 +503,8 @@ export const loadAppStateFromSupabase = async (): Promise<AppStatePayload> => {
     nightShifts: (nightShiftsRes.data || []).map(toNightShift),
     approvals: (approvalsRes.data || []).map(toApproval),
     auditLogs: (auditLogsRes.data || []).map(toAuditLog),
-    settings: settingsRes.data ? toSettings(settingsRes.data) : null,
+    settings: defaultSettings,
+    accountSettings: accountSettingsMap,
   };
 };
 
@@ -507,6 +521,13 @@ export const syncAuditLogsToSupabase = async (rows: AuditLog[]) => replaceTableB
 export const syncSettingsToSupabase = async (row: SystemSettings) => {
   const client = ensureClient();
   const payload = fromSettings(row);
+  const { error } = await client.from('system_settings').upsert(payload, { onConflict: 'id' });
+  if (error) throw error;
+};
+
+export const syncAccountSettingsToSupabase = async (id: string, row: SystemSettings) => {
+  const client = ensureClient();
+  const payload = fromSettingsWithId(id, row);
   const { error } = await client.from('system_settings').upsert(payload, { onConflict: 'id' });
   if (error) throw error;
 };

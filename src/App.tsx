@@ -23,6 +23,7 @@ import DatabaseGuide from './components/DatabaseGuide';
 import { hasSupabaseConfig, supabase } from './lib/supabaseClient';
 import {
   loadAppStateFromSupabase,
+  syncAccountSettingsToSupabase,
   syncApprovalsToSupabase,
   syncAttendanceToSupabase,
   syncAuditLogsToSupabase,
@@ -69,6 +70,7 @@ export default function App() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [settings, setSettings] = useState<SystemSettings>(initialSettings);
+  const [accountSettings, setAccountSettings] = useState<Record<string, SystemSettings>>({ default: initialSettings });
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User>(defaultCurrentUser);
 
@@ -94,6 +96,7 @@ export default function App() {
   const getSignature = (value: unknown) => JSON.stringify(value);
   const applyRemoteState = useCallback((remote: RemoteAppState) => {
     const nextSettings = remote.settings ?? initialSettings;
+    const nextAccountSettings = remote.accountSettings || { default: nextSettings };
     syncedStateRef.current = {
       users: getSignature(remote.users),
       officers: getSignature(remote.officers),
@@ -116,6 +119,7 @@ export default function App() {
     setApprovals(remote.approvals);
     setAuditLogs(remote.auditLogs);
     setSettings(nextSettings);
+    setAccountSettings(nextAccountSettings);
   }, []);
   const refreshFromSupabase = useCallback(async ({ showLoader = false }: { showLoader?: boolean } = {}) => {
     if (!hasSupabaseConfig) {
@@ -160,6 +164,36 @@ export default function App() {
     },
     [],
   );
+  // Effective settings based on current user account with fallback to default
+  const effectiveSettings = useMemo(() => {
+    if (currentUser?.id) {
+      const userKey = `user_${currentUser.id}`;
+      if (accountSettings[userKey]) return accountSettings[userKey];
+    }
+    if (currentUser?.username) {
+      const usernameKey = `user_${currentUser.username.toLowerCase()}`;
+      if (accountSettings[usernameKey]) return accountSettings[usernameKey];
+    }
+    return accountSettings['default'] || settings || initialSettings;
+  }, [accountSettings, currentUser, settings]);
+
+  const handleSaveAccountSettings = useCallback(async (accountId: string, newConfig: SystemSettings) => {
+    setAccountSettings(prev => ({
+      ...prev,
+      [accountId]: newConfig,
+    }));
+    if (accountId === 'default' || (currentUser && (`user_${currentUser.id}` === accountId || `user_${currentUser.username.toLowerCase()}` === accountId))) {
+      setSettings(newConfig);
+    }
+    if (hasSupabaseConfig) {
+      try {
+        await syncAccountSettingsToSupabase(accountId, newConfig);
+      } catch (err) {
+        console.error('Error syncing account settings:', err);
+      }
+    }
+  }, [currentUser]);
+
   const primaryNavItems = [
     { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin', 'doi', 'to_dia_ban'] },
@@ -169,7 +203,7 @@ export default function App() {
     { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'doi', 'to_dia_ban'] },
   ] as const;
   const systemNavItems = [
-    { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin'] },
+    { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'guide', label: 'Đóng gói Setup.exe', shortLabel: 'Hướng dẫn', icon: HelpCircle, roles: ['admin'] },
   ] as const;
   const userScope = useMemo(() => resolveUserScope(currentUser, teams), [currentUser, teams]);
@@ -669,7 +703,10 @@ export default function App() {
                 rations={scopedRations} 
                 nightShifts={scopedNightShifts} 
                 teams={scopedTeams}
-                settings={settings}
+                settings={effectiveSettings}
+                currentUser={currentUser}
+                onNavigateTab={setActiveTab}
+                approvals={approvals}
               />
             )}
 
@@ -680,7 +717,7 @@ export default function App() {
                 teams={teams}
                 setTeams={setTeams}
                 currentUser={currentUser}
-                settings={settings}
+                settings={effectiveSettings}
                 addLog={addLog} 
               />
             )}
@@ -690,7 +727,7 @@ export default function App() {
                 teams={teams} 
                 setTeams={setTeams} 
                 officers={officers} 
-                settings={settings}
+                settings={effectiveSettings}
                 addLog={addLog} 
               />
             )}
@@ -702,7 +739,7 @@ export default function App() {
                 teams={scopedTeams} 
                 officers={scopedOfficers} 
                 approvals={approvals}
-                settings={settings}
+                settings={effectiveSettings}
                 addLog={addLog} 
                 syncAutoCalculations={syncAutoCalculations} 
                 currentUser={currentUser}
@@ -718,7 +755,7 @@ export default function App() {
                 setAttendance={setAttendance} 
                 officers={scopedOfficers} 
                 approvals={approvals}
-                settings={settings}
+                settings={effectiveSettings}
                 addLog={addLog} 
                 currentUser={currentUser}
                 allowedOfficerIds={userScope.canViewAll ? officers.map((officer) => officer.id) : userScope.allowedOfficerIds}
@@ -733,7 +770,7 @@ export default function App() {
                 nightShifts={scopedNightShifts} 
                 approvals={approvals} 
                 setApprovals={setApprovals} 
-                settings={settings} 
+                settings={effectiveSettings} 
                 addLog={addLog} 
                 currentUser={currentUser} 
                 schedules={scopedSchedules}
@@ -743,7 +780,7 @@ export default function App() {
 
             {activeTab === 'settings' && (
               <SecurityAndSettings 
-                settings={settings} 
+                settings={effectiveSettings} 
                 setSettings={setSettings} 
                 auditLogs={auditLogs} 
                 setAuditLogs={setAuditLogs} 
@@ -756,6 +793,9 @@ export default function App() {
                 setUsers={setUsers}
                 officers={officers}
                 teams={teams}
+                accountSettings={accountSettings}
+                setAccountSettings={setAccountSettings}
+                onSaveAccountSettings={handleSaveAccountSettings}
               />
             )}
 
