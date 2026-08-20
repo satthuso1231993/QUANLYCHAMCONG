@@ -15,7 +15,7 @@ import {
 } from '../types';
 import { supabase } from './supabaseClient';
 
-type AppStatePayload = {
+export type AppStatePayload = {
   users: User[];
   officers: Officer[];
   teams: Team[];
@@ -35,118 +35,228 @@ const ensureClient = () => {
   return supabase;
 };
 
-const toUser = (row: any): User => ({
-  id: String(row.id),
-  username: String(row.username),
-  password: row.password ?? undefined,
-  role: row.role,
-  fullName: String(row.full_name),
-  officerId: row.officer_id ?? undefined,
-  managedTeamId: row.managed_team_id ?? undefined,
-});
+// 1. User mappings
+const toUser = (row: any): User => {
+  let officerId: string | undefined = row.officer_id ?? undefined;
+  let managedTeamId: string | undefined = undefined;
 
-const fromUser = (row: User) => ({
-  id: row.id,
-  username: row.username,
-  password: row.password ?? '',
-  role: row.role,
-  full_name: row.fullName,
-  officer_id: row.officerId ?? null,
-  managed_team_id: row.managedTeamId ?? null,
-});
+  if (row.officer_id && String(row.officer_id).includes('__TEAM__')) {
+    const parts = String(row.officer_id).split('__TEAM__');
+    officerId = parts[0] || undefined;
+    managedTeamId = parts[1] || undefined;
+  }
 
-const toOfficer = (row: any): Officer => ({
-  id: String(row.id),
-  fullName: String(row.full_name),
-  rank: row.rank,
-  position: row.position,
-  badgeNumber: row.badge_number ?? '',
-  department: row.department ?? '',
-  phoneNumber: row.phone_number ?? '',
-  yearOfBirth: row.year_of_birth === null || row.year_of_birth === undefined ? undefined : Number(row.year_of_birth),
-  status: row.status,
-});
+  let role: User['role'] = 'admin';
+  if (row.role === 'commander' || row.role === 'doi') {
+    role = 'doi';
+  } else if (row.role === 'leader' || row.role === 'to_dia_ban') {
+    role = 'to_dia_ban';
+  } else if (row.role === 'admin') {
+    role = 'admin';
+  }
 
-const fromOfficer = (row: Officer) => ({
-  id: row.id,
-  full_name: row.fullName,
-  rank: row.rank,
-  position: row.position,
-  badge_number: row.badgeNumber,
-  department: row.department,
-  phone_number: row.phoneNumber,
-  year_of_birth: row.yearOfBirth ?? null,
-  status: row.status,
-});
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    password: row.password ?? undefined,
+    role,
+    fullName: String(row.full_name),
+    officerId,
+    managedTeamId,
+  };
+};
 
-const toTeam = (row: any): Team => ({
-  id: String(row.id),
-  name: String(row.name),
-  teamType: row.team_type === 'to_dia_ban' ? 'to_dia_ban' : 'doi',
-  parentTeamId: row.parent_team_id ?? undefined,
-  leaderId: row.leader_id ?? '',
-  memberIds: Array.isArray(row.member_ids) ? row.member_ids.map(String) : [],
-});
+const fromUser = (row: User) => {
+  const now = new Date().toISOString();
+  let roleVal = 'admin';
+  if (row.role === 'doi') roleVal = 'commander';
+  else if (row.role === 'to_dia_ban') roleVal = 'leader';
 
-const fromTeam = (row: Team) => ({
-  id: row.id,
-  name: row.name,
-  team_type: row.teamType ?? 'doi',
-  parent_team_id: row.parentTeamId ?? null,
-  leader_id: row.leaderId || null,
-  member_ids: row.memberIds,
-});
+  let officerIdVal: string | null = null;
+  if (row.managedTeamId) {
+    officerIdVal = `${row.officerId || ''}__TEAM__${row.managedTeamId}`;
+  } else if (row.officerId) {
+    officerIdVal = row.officerId;
+  }
 
-const toSchedule = (row: any): PatrolSchedule => ({
-  id: String(row.id),
-  date: String(row.date),
-  startTime: String(row.start_time),
-  endTime: String(row.end_time),
-  route: row.route ?? undefined,
-  area: row.area ?? undefined,
-  topic: String(row.topic),
-  missionType: row.mission_type,
-  teamId: row.team_id ?? undefined,
-  customOfficerIds: Array.isArray(row.custom_officer_ids) ? row.custom_officer_ids.map(String) : [],
-  notes: row.notes ?? undefined,
-  status: row.status,
-});
+  return {
+    id: row.id,
+    username: row.username,
+    password: row.password ?? '',
+    role: roleVal,
+    full_name: row.fullName,
+    officer_id: officerIdVal,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
-const fromSchedule = (row: PatrolSchedule) => ({
-  id: row.id,
-  date: row.date,
-  start_time: row.startTime,
-  end_time: row.endTime,
-  route: row.route ?? null,
-  area: row.area ?? null,
-  topic: row.topic,
-  mission_type: row.missionType,
-  team_id: row.teamId ?? null,
-  custom_officer_ids: row.customOfficerIds ?? [],
-  notes: row.notes ?? null,
-  status: row.status,
-});
+// 2. Officer mappings
+const toOfficer = (row: any): Officer => {
+  let yearOfBirth: number | undefined = undefined;
+  if (row.full_name) {
+    const match = String(row.full_name).match(/\((19\d\d|20\d\d)[A-Za-z]?\)/);
+    if (match && match[1]) {
+      yearOfBirth = parseInt(match[1], 10);
+    }
+  }
 
+  return {
+    id: String(row.id),
+    fullName: String(row.full_name),
+    rank: row.rank || 'Thiếu úy',
+    position: row.position || 'Cán bộ',
+    badgeNumber: row.badge_number ?? '',
+    department: row.department ?? '',
+    phoneNumber: row.phone_number ?? '',
+    yearOfBirth,
+    status: row.status === 'Tạm nghỉ' || row.status === 'Chuyển công tác' ? row.status : 'Đang công tác',
+  };
+};
+
+const fromOfficer = (row: Officer) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    full_name: row.fullName,
+    rank: row.rank,
+    position: row.position,
+    badge_number: row.badgeNumber || '',
+    department: row.department || '',
+    phone_number: row.phoneNumber || '',
+    status: row.status || 'Đang công tác',
+    created_at: now,
+    updated_at: now,
+  };
+};
+
+// 3. Team mappings (transparent metadata encoding in member_ids)
+const toTeam = (row: any): Team => {
+  const rawMembers: string[] = Array.isArray(row.member_ids) ? row.member_ids.map(String) : [];
+  let teamType: Team['teamType'] = 'doi';
+  let parentTeamId: string | undefined = undefined;
+  const cleanMembers: string[] = [];
+
+  for (const m of rawMembers) {
+    if (m.startsWith('__TYPE__')) {
+      const typeVal = m.replace('__TYPE__', '') as Team['teamType'];
+      if (typeVal === 'doi' || typeVal === 'to_dia_ban' || typeVal === 'to_ttks') {
+        teamType = typeVal;
+      }
+    } else if (m.startsWith('__PARENT__')) {
+      parentTeamId = m.replace('__PARENT__', '');
+    } else {
+      cleanMembers.push(m);
+    }
+  }
+
+  // Fallback if no metadata tag found
+  if (!rawMembers.some(m => m.startsWith('__TYPE__'))) {
+    const nameLower = (row.name || '').toLowerCase();
+    if (nameLower.includes('địa bàn') || nameLower.includes('tổ ') || nameLower.includes('to ')) {
+      teamType = 'to_dia_ban';
+    } else {
+      teamType = 'doi';
+    }
+  }
+
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    teamType,
+    parentTeamId,
+    leaderId: row.leader_id ?? '',
+    memberIds: cleanMembers,
+  };
+};
+
+const fromTeam = (row: Team) => {
+  const now = new Date().toISOString();
+  const metaType = `__TYPE__${row.teamType || 'doi'}`;
+  const metaParent = row.parentTeamId ? `__PARENT__${row.parentTeamId}` : null;
+  const cleanMembers = (row.memberIds || []).filter(m => !m.startsWith('__TYPE__') && !m.startsWith('__PARENT__'));
+  const finalMembers = [...cleanMembers, metaType, metaParent].filter(Boolean);
+
+  return {
+    id: row.id,
+    name: row.name,
+    leader_id: row.leaderId || null,
+    member_ids: finalMembers,
+    created_at: now,
+    updated_at: now,
+  };
+};
+
+// 4. Schedule mappings
+const toSchedule = (row: any): PatrolSchedule => {
+  let status: PatrolSchedule['status'] = 'Bản nháp';
+  if (row.status === 'Đã ban hành' || row.status === 'approved') {
+    status = 'Đã ban hành';
+  }
+
+  return {
+    id: String(row.id),
+    date: String(row.date),
+    startTime: String(row.start_time),
+    endTime: String(row.end_time),
+    route: row.route ?? undefined,
+    area: row.area ?? undefined,
+    topic: String(row.topic || ''),
+    missionType: row.mission_type || 'Tuần tra kiểm soát',
+    teamId: row.team_id ?? undefined,
+    customOfficerIds: Array.isArray(row.custom_officer_ids) ? row.custom_officer_ids.map(String) : [],
+    notes: row.notes ?? undefined,
+    status,
+  };
+};
+
+const fromSchedule = (row: PatrolSchedule) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    date: row.date,
+    start_time: row.startTime,
+    end_time: row.endTime,
+    route: row.route ?? null,
+    area: row.area ?? null,
+    topic: row.topic || '',
+    mission_type: row.missionType || 'Tuần tra kiểm soát',
+    team_id: row.teamId ?? null,
+    custom_officer_ids: row.customOfficerIds ?? [],
+    notes: row.notes ?? null,
+    status: row.status === 'Bản nháp' ? 'Bản nháp' : 'Đã ban hành',
+    created_at: now,
+    updated_at: now,
+  };
+};
+
+// 5. Attendance mappings
 const toAttendance = (row: any): Attendance => ({
   id: String(row.id),
   officerId: String(row.officer_id),
   date: String(row.date),
-  type: row.type,
+  type: row.type || 'Làm việc',
   sourceScheduleId: row.source_schedule_id ?? undefined,
   hours: row.hours === null || row.hours === undefined ? undefined : Number(row.hours),
   notes: row.notes ?? undefined,
 });
 
-const fromAttendance = (row: Attendance) => ({
-  id: row.id,
-  officer_id: row.officerId,
-  date: row.date,
-  type: row.type,
-  source_schedule_id: row.sourceScheduleId ?? null,
-  hours: row.hours ?? null,
-  notes: row.notes ?? null,
-});
+const fromAttendance = (row: Attendance) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    officer_id: row.officerId,
+    date: row.date,
+    type: row.type || 'Làm việc',
+    source_schedule_id: row.sourceScheduleId ?? null,
+    hours: row.hours ?? null,
+    notes: row.notes ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
+// 6. Ration mappings
 const toRation = (row: any): RationRecord => ({
   id: String(row.id),
   officerId: String(row.officer_id),
@@ -155,14 +265,20 @@ const toRation = (row: any): RationRecord => ({
   amount: Number(row.amount ?? 0),
 });
 
-const fromRation = (row: RationRecord) => ({
-  id: row.id,
-  officer_id: row.officerId,
-  date: row.date,
-  schedule_id: row.scheduleId,
-  amount: row.amount,
-});
+const fromRation = (row: RationRecord) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    officer_id: row.officerId,
+    date: row.date,
+    schedule_id: row.scheduleId,
+    amount: row.amount,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
+// 7. Night shift mappings
 const toNightShift = (row: any): NightShiftRecord => ({
   id: String(row.id),
   officerId: String(row.officer_id),
@@ -172,57 +288,74 @@ const toNightShift = (row: any): NightShiftRecord => ({
   amount: Number(row.amount ?? 0),
 });
 
-const fromNightShift = (row: NightShiftRecord) => ({
-  id: row.id,
-  officer_id: row.officerId,
-  date: row.date,
-  schedule_id: row.scheduleId,
-  hours_count: row.hoursCount,
-  amount: row.amount,
-});
+const fromNightShift = (row: NightShiftRecord) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    officer_id: row.officerId,
+    date: row.date,
+    schedule_id: row.scheduleId,
+    hours_count: row.hoursCount ?? 0,
+    amount: row.amount ?? 0,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
+// 8. Approval mappings
 const toApproval = (row: any): Approval => ({
   id: String(row.id),
   monthString: String(row.month_string),
-  status: row.status,
-  approvedBy: String(row.approved_by),
-  approvedAt: String(row.approved_at),
+  status: row.status === 'Đã khóa' ? 'Đã khóa' : 'Chưa khóa',
+  approvedBy: String(row.approved_by || ''),
+  approvedAt: String(row.approved_at || new Date().toISOString()),
 });
 
-const fromApproval = (row: Approval) => ({
-  id: row.id,
-  month_string: row.monthString,
-  status: row.status,
-  approved_by: row.approvedBy,
-  approved_at: row.approvedAt,
-});
+const fromApproval = (row: Approval) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    month_string: row.monthString,
+    status: row.status === 'Đã khóa' ? 'Đã khóa' : 'Chưa khóa',
+    approved_by: row.approvedBy || '',
+    approved_at: row.approvedAt || now,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
+// 9. Audit log mappings
 const toAuditLog = (row: any): AuditLog => ({
   id: String(row.id),
-  userId: String(row.user_id),
-  username: String(row.username),
-  userFullName: String(row.user_full_name),
-  timestamp: String(row.timestamp),
-  action: String(row.action),
-  details: String(row.details),
+  userId: String(row.user_id || ''),
+  username: String(row.username || ''),
+  userFullName: String(row.user_full_name || ''),
+  timestamp: String(row.timestamp || new Date().toISOString()),
+  action: String(row.action || ''),
+  details: String(row.details || ''),
 });
 
-const fromAuditLog = (row: AuditLog) => ({
-  id: row.id,
-  user_id: row.userId,
-  username: row.username,
-  user_full_name: row.userFullName,
-  timestamp: row.timestamp,
-  action: row.action,
-  details: row.details,
-});
+const fromAuditLog = (row: AuditLog) => {
+  const now = new Date().toISOString();
+  return {
+    id: row.id,
+    user_id: row.userId || 'system',
+    username: row.username || 'system',
+    user_full_name: row.userFullName || 'Hệ thống',
+    timestamp: row.timestamp || now,
+    action: row.action || 'Thao tác',
+    details: row.details || '',
+    created_at: now,
+  };
+};
 
+// 10. Settings mappings
 const toSettings = (row: any): SystemSettings => ({
   rationRate: Number(row.ration_rate ?? 75000),
   nightShiftRate: Number(row.night_shift_rate ?? 200000),
-  departmentName: String(row.department_name ?? ''),
-  unitName: String(row.unit_name ?? ''),
-  overnightShiftAttendanceMode: row.overnight_shift_attendance_mode,
+  departmentName: String(row.department_name ?? 'PHÒNG CẢNH SÁT GIAO THÔNG'),
+  unitName: String(row.unit_name ?? 'CÔNG AN TỈNH PHÚ YÊN'),
+  overnightShiftAttendanceMode: row.overnight_shift_attendance_mode || 'standard',
   symbolWork: row.symbol_work ?? 'x',
   symbolMission: row.symbol_mission ?? 'Ct',
   symbolStudy: row.symbol_study ?? 'H',
@@ -242,58 +375,76 @@ const toSettings = (row: any): SystemSettings => ({
   signerLeaderSubTitle: row.signer_leader_sub_title ?? undefined,
   signerLeaderSealTitle: row.signer_leader_seal_title ?? undefined,
   maxNightShiftCompensationTurns: Number(row.max_night_shift_compensation_turns ?? 10),
-  paternityLeaveMaxDays: Number(row.paternity_leave_max_days ?? 14),
-  paternityLeaveEligibility: row.paternity_leave_eligibility ?? undefined,
-  paternityLeaveRegistrationProcess: row.paternity_leave_registration_process ?? undefined,
-  paternityLeaveApprovalProcess: row.paternity_leave_approval_process ?? undefined,
-  paternityLeavePayrollPolicy: row.paternity_leave_payroll_policy ?? undefined,
-  paternityLeaveAttendancePolicy: row.paternity_leave_attendance_policy ?? undefined,
+  paternityLeaveMaxDays: 14,
 });
 
-const fromSettings = (row: SystemSettings) => ({
-  id: 'default',
-  ration_rate: row.rationRate,
-  night_shift_rate: row.nightShiftRate,
-  department_name: row.departmentName,
-  unit_name: row.unitName,
-  overnight_shift_attendance_mode: row.overnightShiftAttendanceMode ?? 'standard',
-  symbol_work: row.symbolWork ?? 'x',
-  symbol_mission: row.symbolMission ?? 'Ct',
-  symbol_study: row.symbolStudy ?? 'H',
-  symbol_leave: row.symbolLeave ?? 'P',
-  symbol_paternity_leave: row.symbolPaternityLeave ?? 'NVS',
-  symbol_compensation: row.symbolCompensation ?? 'Nb',
-  symbol_maternity: row.symbolMaternity ?? 'Ts',
-  symbol_rest: row.symbolRest ?? 'Nd',
-  signer_preparer: row.signerPreparer ?? null,
-  signer_commander: row.signerCommander ?? null,
-  signer_leader: row.signerLeader ?? null,
-  signer_preparer_title: row.signerPreparerTitle ?? null,
-  signer_commander_title: row.signerCommanderTitle ?? null,
-  signer_commander_sub_title: row.signerCommanderSubTitle ?? null,
-  signer_leader_title: row.signerLeaderTitle ?? null,
-  signer_leader_acting_title: row.signerLeaderActingTitle ?? null,
-  signer_leader_sub_title: row.signerLeaderSubTitle ?? null,
-  signer_leader_seal_title: row.signerLeaderSealTitle ?? null,
-  max_night_shift_compensation_turns: row.maxNightShiftCompensationTurns ?? 10,
-  paternity_leave_max_days: row.paternityLeaveMaxDays ?? 14,
-  paternity_leave_eligibility: row.paternityLeaveEligibility ?? null,
-  paternity_leave_registration_process: row.paternityLeaveRegistrationProcess ?? null,
-  paternity_leave_approval_process: row.paternityLeaveApprovalProcess ?? null,
-  paternity_leave_payroll_policy: row.paternityLeavePayrollPolicy ?? null,
-  paternity_leave_attendance_policy: row.paternityLeaveAttendancePolicy ?? null,
-});
+const fromSettings = (row: SystemSettings) => {
+  const now = new Date().toISOString();
+  return {
+    id: 'default',
+    ration_rate: row.rationRate,
+    night_shift_rate: row.nightShiftRate,
+    department_name: row.departmentName,
+    unit_name: row.unitName,
+    overnight_shift_attendance_mode: row.overnightShiftAttendanceMode ?? 'standard',
+    symbol_work: row.symbolWork ?? 'x',
+    symbol_mission: row.symbolMission ?? 'Ct',
+    symbol_study: row.symbolStudy ?? 'H',
+    symbol_leave: row.symbolLeave ?? 'P',
+    symbol_compensation: row.symbolCompensation ?? 'Nb',
+    symbol_maternity: row.symbolMaternity ?? 'Ts',
+    symbol_rest: row.symbolRest ?? 'Nd',
+    signer_preparer: row.signerPreparer ?? null,
+    signer_commander: row.signerCommander ?? null,
+    signer_leader: row.signerLeader ?? null,
+    signer_preparer_title: row.signerPreparerTitle ?? null,
+    signer_commander_title: row.signerCommanderTitle ?? null,
+    signer_commander_sub_title: row.signerCommanderSubTitle ?? null,
+    signer_leader_title: row.signerLeaderTitle ?? null,
+    signer_leader_acting_title: row.signerLeaderActingTitle ?? null,
+    signer_leader_sub_title: row.signerLeaderSubTitle ?? null,
+    signer_leader_seal_title: row.signerLeaderSealTitle ?? null,
+    max_night_shift_compensation_turns: row.maxNightShiftCompensationTurns ?? 10,
+    created_at: now,
+    updated_at: now,
+  };
+};
 
+/**
+ * Replace table contents with safe chunked upsert and delete operations
+ */
 const replaceTableById = async (table: string, rows: any[]) => {
   const client = ensureClient();
   if (rows.length > 0) {
-    const { error } = await client.from(table).upsert(rows, { onConflict: 'id' });
-    if (error) throw error;
-    const ids = rows.map((row) => row.id);
-    const { error: deleteError } = await client.from(table).delete().not('id', 'in', `(${ids.map((id) => `"${String(id).replace(/"/g, '""')}"`).join(',')})`);
-    if (deleteError && !String(deleteError.message || '').includes('0 rows')) throw deleteError;
+    // 1. Upsert in batches of 50
+    for (let i = 0; i < rows.length; i += 50) {
+      const batch = rows.slice(i, i + 50);
+      const { error: upsertError } = await client.from(table).upsert(batch, { onConflict: 'id' });
+      if (upsertError) {
+        console.error(`Lỗi ghi dữ liệu bảng ${table}:`, upsertError);
+        throw upsertError;
+      }
+    }
+
+    // 2. Delete stale rows not present in current payload
+    const currentIds = new Set(rows.map((r) => String(r.id)));
+    const { data: existingRows, error: fetchError } = await client.from(table).select('id');
+    if (!fetchError && existingRows && existingRows.length > 0) {
+      const staleIds = existingRows
+        .map((r: any) => String(r.id))
+        .filter((id: string) => !currentIds.has(id));
+
+      if (staleIds.length > 0) {
+        for (let i = 0; i < staleIds.length; i += 50) {
+          const chunk = staleIds.slice(i, i + 50);
+          await client.from(table).delete().in('id', chunk);
+        }
+      }
+    }
     return;
   }
+
+  // If payload is empty, clean the table
   const { error } = await client.from(table).delete().neq('id', '__never__');
   if (error) throw error;
 };
@@ -412,3 +563,4 @@ export const deleteTemplateOverrideFromSupabase = async (userId: string, reportI
     .eq('report_id', reportId);
   if (error) throw error;
 };
+

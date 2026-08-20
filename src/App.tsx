@@ -8,7 +8,7 @@ import {
 
 // Icons
 import { 
-  LayoutDashboard, Users, ShieldAlert, CalendarRange, ClipboardCheck, FileSpreadsheet, Settings, HelpCircle, LogOut, Check, Shield, User as UserIcon, Lock
+  LayoutDashboard, Users, ShieldAlert, CalendarRange, ClipboardCheck, FileSpreadsheet, Settings, HelpCircle, LogOut, Check, Shield, User as UserIcon, Lock, RefreshCw
 } from 'lucide-react';
 
 // Components
@@ -75,6 +75,7 @@ export default function App() {
   // Sidebar navigation active state
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isCloudBootstrapping, setIsCloudBootstrapping] = useState<boolean>(hasSupabaseConfig);
+  const [isRefreshingCloud, setIsRefreshingCloud] = useState<boolean>(false);
   const [cloudSyncError, setCloudSyncError] = useState<string>('');
   const hasHydratedSupabaseRef = useRef(false);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
@@ -563,18 +564,32 @@ export default function App() {
           </div>
         </div>
 
-        {/* User context information */}
-        <div className="flex items-center gap-4 text-xs font-bold">
+        {/* User context information & Cloud sync button */}
+        <div className="flex items-center gap-3 text-xs font-bold">
+          <button
+            onClick={async () => {
+              setIsRefreshingCloud(true);
+              await refreshFromSupabase({ showLoader: false });
+              setTimeout(() => setIsRefreshingCloud(false), 500);
+            }}
+            disabled={isRefreshingCloud}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 transition-all cursor-pointer text-xs"
+            title="Bấm để đồng bộ tải lại dữ liệu mới nhất từ Supabase"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingCloud ? 'animate-spin text-yellow-400' : 'text-emerald-400'}`} />
+            <span className="hidden sm:inline">{isRefreshingCloud ? 'Đang đồng bộ...' : 'Đồng bộ Supabase'}</span>
+          </button>
+
           <div className="text-right hidden sm:block">
             <span className="block text-slate-100">{currentUser.fullName}</span>
             <span className={`text-[9px] font-extrabold uppercase tracking-wider ${cloudSyncError ? 'text-amber-300' : 'text-emerald-400'}`}>
-              {cloudSyncError ? 'Supabase • Có lỗi đồng bộ' : 'Supabase • Đã kết nối'}
+              {cloudSyncError ? 'Supabase • Có lỗi đồng bộ' : 'Supabase • Trực tuyến (Đọc/Ghi)'}
             </span>
           </div>
           
           <button
             onClick={handleLogout}
-            className="p-2 bg-slate-900 hover:bg-slate-850 text-rose-400 rounded-lg transition-all border border-slate-850 cursor-pointer"
+            className="p-2 bg-slate-900 hover:bg-slate-850 text-rose-400 rounded-xl transition-all border border-slate-850 cursor-pointer"
             title="Đăng xuất"
           >
             <LogOut className="w-4 h-4" />
