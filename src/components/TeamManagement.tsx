@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Officer, SystemSettings, Team } from '../types';
-import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square } from 'lucide-react';
+import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square, Building2, MapPin, Radio, Layers, AlertCircle } from 'lucide-react';
 import { getTeamTypeLabel } from '../utils/accessScope';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
@@ -12,7 +12,10 @@ interface TeamManagementProps {
   addLog: (action: string, details: string) => void;
 }
 
+type ViewFilter = 'all' | 'doi' | 'to_dia_ban' | 'to_ttks';
+
 export default function TeamManagement({ teams, setTeams, officers, settings, addLog }: TeamManagementProps) {
+  const [activeTab, setActiveTab] = useState<ViewFilter>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -26,14 +29,16 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
   const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
 
-  const handleOpenAdd = () => {
+  const doiTeams = teams.filter((t) => (t.teamType || 'doi') === 'doi');
+  const diaBanTeams = teams.filter((t) => (t.teamType || 'doi') === 'to_dia_ban');
+  const ttksTeams = teams.filter((t) => (t.teamType || 'doi') === 'to_ttks');
+
+  const handleOpenAdd = (type: 'doi' | 'to_dia_ban' | 'to_ttks' = 'doi') => {
     setEditingTeam(null);
     setName('');
-    setTeamType('doi');
-    setParentTeamId('');
-    // Select first working officer as default leader candidates
-    const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
-    setLeaderId(activeOfficers[0]?.id || '');
+    setTeamType(type);
+    setParentTeamId(type === 'to_dia_ban' && doiTeams.length > 0 ? doiTeams[0].id : '');
+    setLeaderId('');
     setMemberIds([]);
     setShowModal(true);
   };
@@ -43,8 +48,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
     setName(team.name);
     setTeamType(team.teamType || 'doi');
     setParentTeamId(team.parentTeamId || '');
-    setLeaderId(team.leaderId);
-    setMemberIds(team.memberIds);
+    setLeaderId(team.leaderId || '');
+    setMemberIds(team.memberIds || []);
     setShowModal(true);
   };
 
@@ -56,7 +61,7 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
     if (!deleteConfirm) return;
     const { id, name } = deleteConfirm;
     setTeams(prev => prev.filter(t => t.id !== id));
-    addLog('Giải tán tổ tuần tra', `Đã giải tán ${name}.`);
+    addLog('Xóa cơ cấu đơn vị', `Đã xóa đơn vị ${name} khỏi hệ thống.`);
     setDeleteConfirm(null);
   };
 
@@ -70,9 +75,6 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
     });
   };
 
-  const doiTeams = teams.filter((t) => (t.teamType || 'doi') === 'doi');
-  const diaBanTeams = teams.filter((t) => (t.teamType || 'doi') === 'to_dia_ban');
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -81,12 +83,12 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
     }
 
     if (teamType === 'to_dia_ban' && !parentTeamId && doiTeams.length > 0) {
-      alert('Tổ địa bàn phải được gán trực thuộc một Đội!');
+      alert('Tổ địa bàn phải được chọn gán trực thuộc một Đội!');
       return;
     }
 
     if (teamType === 'to_ttks' && !parentTeamId && (doiTeams.length > 0 || diaBanTeams.length > 0)) {
-      alert('Tổ TTKS phải được gán trực thuộc một Đội hoặc một Tổ địa bàn!');
+      alert('Tổ TTKS phải được chọn gán trực thuộc một Đội hoặc một Tổ địa bàn!');
       return;
     }
 
@@ -97,7 +99,6 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       finalParentTeamId = parentTeamId || undefined;
     }
 
-    // Ensure leader is part of the members if selected
     let finalMembers = [...memberIds];
     if (leaderId && !finalMembers.includes(leaderId)) {
       finalMembers.push(leaderId);
@@ -107,78 +108,246 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       // Update
       setTeams(prev => prev.map(t => t.id === editingTeam.id ? {
         ...t,
-        name,
+        name: name.trim(),
         teamType,
         parentTeamId: finalParentTeamId,
-        leaderId,
+        leaderId: leaderId || '',
         memberIds: finalMembers
       } : t));
-      addLog('Cấu trúc lại tổ tuần tra', `Đã cập nhật cơ cấu tổ của ${name}.`);
+      addLog('Cập nhật cơ cấu tổ', `Đã cập nhật cơ cấu của ${name}.`);
     } else {
       // New Team
       const newTeam: Team = {
         id: `TEAM_${Date.now()}`,
-        name,
+        name: name.trim(),
         teamType,
         parentTeamId: finalParentTeamId,
-        leaderId,
+        leaderId: leaderId || '',
         memberIds: finalMembers
       };
       setTeams(prev => [...prev, newTeam]);
-      addLog('Thành lập tổ tuần tra mới', `Đã thành lập tổ tuần tra mới: ${name}.`);
+      addLog('Thành lập đơn vị / tổ mới', `Đã khởi tạo: ${name} (${getTeamTypeLabel(teamType)}).`);
     }
     setShowModal(false);
   };
 
   const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
 
+  const filteredTeams = teams.filter(t => {
+    if (activeTab === 'all') return true;
+    return (t.teamType || 'doi') === activeTab;
+  });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-100 shadow-xs">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Quản lý Tổ Tuần tra Kiểm soát</h2>
-          <p className="text-sm text-slate-500 mt-1">Lập danh sách cơ cấu tổ, chỉ định Tổ trưởng và định biên thành viên</p>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2.5">
+            <Building2 className="w-6 h-6 text-red-650" />
+            <span>Quản lý Đơn vị & Cơ cấu Tổ đội</span>
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Khởi tạo các <strong>Đội nghiệp vụ</strong>, <strong>Tổ địa bàn trực thuộc</strong> và <strong>Tổ TTKS tuần tra</strong>
+          </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-xs font-semibold transition-colors shadow-sm"
+        {/* Quick Add Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleOpenAdd('doi')}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Đội mới</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenAdd('to_dia_ban')}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Tổ địa bàn</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenAdd('to_ttks')}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Tổ TTKS</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Statistics Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div 
+          onClick={() => setActiveTab('doi')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+            activeTab === 'doi' ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-500/20' : 'bg-white border-slate-150 hover:border-slate-300'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Thêm Tổ Tuần Tra</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cấp Đội</span>
+            <Building2 className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-blue-700">{doiTeams.length}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Đơn vị quản lý cấp trên</div>
+        </div>
+
+        <div 
+          onClick={() => setActiveTab('to_dia_ban')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+            activeTab === 'to_dia_ban' ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20' : 'bg-white border-slate-150 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổ địa bàn</span>
+            <MapPin className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-emerald-700">{diaBanTeams.length}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Trực thuộc các Đội</div>
+        </div>
+
+        <div 
+          onClick={() => setActiveTab('to_ttks')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+            activeTab === 'to_ttks' ? 'bg-purple-50/80 border-purple-300 ring-2 ring-purple-500/20' : 'bg-white border-slate-150 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổ TTKS</span>
+            <Radio className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-purple-700">{ttksTeams.length}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Tuần tra kiểm soát trực tiếp</div>
+        </div>
+
+        <div 
+          onClick={() => setActiveTab('all')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+            activeTab === 'all' ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/20' : 'bg-white border-slate-150 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng Đơn Vị</span>
+            <Layers className="w-4 h-4 text-slate-700" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-800">{teams.length}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Toàn bộ cơ cấu tổ chức</div>
+        </div>
+      </div>
+
+      {/* Filter Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+            activeTab === 'all'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Tất cả cơ cấu ({teams.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('doi')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'doi'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-blue-700 hover:bg-blue-50'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Danh mục Đội ({doiTeams.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('to_dia_ban')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'to_dia_ban'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-emerald-700 hover:bg-emerald-50'
+          }`}
+        >
+          <MapPin className="w-3.5 h-3.5" />
+          <span>Danh mục Tổ địa bàn ({diaBanTeams.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('to_ttks')}
+          className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'to_ttks'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'text-purple-700 hover:bg-purple-50'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5" />
+          <span>Tổ TTKS tuần tra ({ttksTeams.length})</span>
         </button>
       </div>
 
       {/* Grid of Teams */}
-      {teams.length === 0 ? (
-        <div className="bg-white p-12 text-center rounded-xl border border-slate-100 text-slate-400">
-          Chưa thành lập biên chế tổ tuần tra kiểm soát nào. Vui lòng bấm "Thêm Tổ Tuần Tra".
+      {filteredTeams.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-2xl border border-slate-150 text-slate-400 space-y-3">
+          <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
+          <p className="text-sm font-semibold">
+            {activeTab === 'doi'
+              ? 'Chưa có Đội nào được tạo. Hãy bấm "+ Thêm Đội mới" bên trên.'
+              : activeTab === 'to_dia_ban'
+              ? 'Chưa có Tổ địa bàn nào. Hãy bấm "+ Thêm Tổ địa bàn" bên trên.'
+              : activeTab === 'to_ttks'
+              ? 'Chưa có Tổ TTKS nào. Hãy bấm "+ Thêm Tổ TTKS" bên trên.'
+              : 'Chưa có cơ cấu đơn vị nào được tạo trong hệ thống.'}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {teams.map((team) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredTeams.map((team) => {
             const leader = officers.find(o => o.id === team.leaderId);
-            // Members excluding leader
-            const otherMemberIds = team.memberIds.filter(id => id !== team.leaderId);
+            const otherMemberIds = (team.memberIds || []).filter(id => id !== team.leaderId);
             const otherMembers = otherMemberIds
               .map(id => officers.find(o => o.id === id))
               .filter(Boolean) as Officer[];
 
+            // Subordinate units if this is a Đội
+            const childDiaBan = diaBanTeams.filter(d => d.parentTeamId === team.id);
+            const childTtks = ttksTeams.filter(t => t.parentTeamId === team.id);
+            const parentTeam = teams.find(p => p.id === team.parentTeamId);
+
             return (
-              <div key={team.id} className="bg-white rounded-xl border border-slate-150 shadow-xs hover:border-slate-350 transition-all overflow-hidden flex flex-col justify-between">
+              <div 
+                key={team.id} 
+                className="bg-white rounded-2xl border border-slate-150 shadow-xs hover:border-slate-300 transition-all overflow-hidden flex flex-col justify-between"
+              >
                 <div>
                   {/* Card Header */}
-                  <div className="px-5 py-4 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md">
-                        <Users className="w-4 h-4" />
+                  <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-start gap-2.5">
+                      <div className={`p-2 rounded-xl mt-0.5 ${
+                        team.teamType === 'doi'
+                          ? 'bg-blue-100 text-blue-700'
+                          : team.teamType === 'to_dia_ban'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {team.teamType === 'doi' ? (
+                          <Building2 className="w-4 h-4" />
+                        ) : team.teamType === 'to_dia_ban' ? (
+                          <MapPin className="w-4 h-4" />
+                        ) : (
+                          <Radio className="w-4 h-4" />
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-slate-800 text-sm">{team.name}</h3>
+                          <h3 className="font-bold text-slate-800 text-sm leading-tight">{team.name}</h3>
+                        </div>
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               team.teamType === 'doi'
                                 ? 'bg-blue-100 text-blue-800 border border-blue-200'
                                 : team.teamType === 'to_dia_ban'
@@ -188,45 +357,71 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                           >
                             {getTeamTypeLabel(team.teamType)}
                           </span>
+
+                          {parentTeam && (
+                            <span className="text-[10px] text-slate-500 font-semibold">
+                              • Thuộc: <strong>{parentTeam.name}</strong>
+                            </span>
+                          )}
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {team.parentTeamId
-                            ? `Trực thuộc: ${teams.find((item) => item.id === team.parentTeamId)?.name || 'Cấp trên'}`
-                            : 'Đơn vị độc lập (Cấp Đội)'}
-                        </p>
+
                         {team.teamType !== 'doi' && !team.parentTeamId && (
-                          <p className="text-[10px] text-amber-700 font-semibold mt-1 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 inline-block">
-                            ⚠️ Chưa gán Đơn vị trực thuộc — Cần sửa lại!
+                          <p className="text-[10px] text-rose-700 font-bold mt-1 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 inline-block">
+                            ⚠️ Chưa gán Đội/Đơn vị cấp trên
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
                       <button
                         onClick={() => handleOpenEdit(team)}
-                        className="p-1 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                        title="Đổi cơ cấu"
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                        title="Chỉnh sửa đơn vị"
                       >
-                        <Edit2 className="w-3 h-3 animate-none" />
+                        <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(team.id, team.name)}
-                        className="p-1 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"
-                        title="Giải tán"
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Xóa đơn vị"
                       >
-                        <Trash2 className="w-3 h-3 animate-none" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
                   {/* Card Content */}
                   <div className="p-5 space-y-4">
+                    {/* Subordinate hierarchy overview if Đội */}
+                    {team.teamType === 'doi' && (
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-150 space-y-2">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Đơn vị trực thuộc Đội ({childDiaBan.length + childTtks.length})
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {childDiaBan.map(d => (
+                            <span key={d.id} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              📍 {d.name}
+                            </span>
+                          ))}
+                          {childTtks.map(t => (
+                            <span key={t.id} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                              🚔 {t.name}
+                            </span>
+                          ))}
+                          {childDiaBan.length === 0 && childTtks.length === 0 && (
+                            <span className="text-[10px] text-slate-400 italic">Chưa có Tổ địa bàn hoặc Tổ TTKS trực thuộc</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Leader details */}
-                    <div className="p-3 bg-blue-50/40 rounded-lg border border-blue-100/50">
-                      <span className="text-[10px] text-blue-600 uppercase font-bold tracking-wider flex items-center gap-1">
+                    <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                      <span className="text-[10px] text-blue-700 uppercase font-bold tracking-wider flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5" />
-                        Tổ trưởng (Chỉ huy)
+                        {team.teamType === 'doi' ? 'Chỉ huy Đội (Đội trưởng)' : 'Tổ trưởng (Chỉ huy tổ)'}
                       </span>
                       {leader ? (
                         <div className="mt-1.5 flex items-baseline justify-between">
@@ -238,48 +433,28 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                           </span>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-500 italic mt-1">(Chưa chỉ định Tổ trưởng / Chỉ huy)</p>
+                        <p className="text-xs text-slate-500 italic mt-1">(Chưa chỉ định Chỉ huy / Tổ trưởng)</p>
                       )}
                     </div>
 
                     {/* Member List */}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                        Danh sách thành viên ({team.memberIds.length} CBCS)
+                        Danh sách quân số ({team.memberIds ? team.memberIds.length : 0} CBCS)
                       </span>
-                      <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
-                        {team.memberIds.map(memId => {
-                          const officer = officers.find(o => o.id === memId);
-                          if (!officer) return null;
-                          const isLeader = memId === team.leaderId;
-
-                          return (
-                            <div key={memId} className="flex items-center justify-between bg-slate-50 p-2 rounded-md border border-slate-100">
-                              <span className="text-xs font-medium text-slate-700">
-                                {officer.rank} {officer.fullName}
-                              </span>
-                              <div className="flex items-center gap-1 text-[9px] text-slate-400">
-                                <span className="font-mono bg-white px-1.5 py-0.5 rounded-sm border border-slate-150">
-                                  {officer.badgeNumber}
-                                </span>
-                                {isLeader && (
-                                  <span className="bg-amber-100 text-amber-700 font-semibold px-1 py-0.5 rounded-xs">
-                                    T.Trưởng
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
+                        {otherMembers.map(m => (
+                          <div key={m.id} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700">
+                            <span className="font-semibold">{m.rank} {m.fullName}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{m.position}</span>
+                          </div>
+                        ))}
+                        {otherMembers.length === 0 && (
+                          <p className="text-[11px] text-slate-400 italic py-1">Chưa phân công thêm thành viên</p>
+                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Footer status */}
-                <div className="px-5 py-3 bg-slate-50 text-[11px] text-slate-500 border-t border-slate-100 flex items-center justify-between">
-                  <span>Trạng thái: Hoạt động</span>
-                  <span className="font-semibold text-slate-600">{settings.departmentName || 'Phòng CSGT'}</span>
                 </div>
               </div>
             );
@@ -287,109 +462,141 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
         </div>
       )}
 
-      {/* ADD/EDIT TEAM MODAL */}
+      {/* MODAL: ADD / EDIT TEAM */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200">
-            <div className="px-5 py-4 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 text-sm">
-                {editingTeam ? 'Cấu trúc lại Tổ Tuần tra' : 'Thành lập Tổ Tuần tra mới'}
-              </h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-150 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-800 text-sm">
+                  {editingTeam ? `Cập nhật: ${editingTeam.name}` : `Khởi tạo ${getTeamTypeLabel(teamType)} mới`}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* Type Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Tên tổ tuần tra *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Cấp độ đơn vị *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTeamType('doi');
+                      setParentTeamId('');
+                    }}
+                    className={`py-2 px-2 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                      teamType === 'doi'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Cấp Đội
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTeamType('to_dia_ban');
+                      if (!parentTeamId && doiTeams.length > 0) setParentTeamId(doiTeams[0].id);
+                    }}
+                    className={`py-2 px-2 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                      teamType === 'to_dia_ban'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Tổ địa bàn
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTeamType('to_ttks');
+                      if (!parentTeamId && doiTeams.length > 0) setParentTeamId(doiTeams[0].id);
+                    }}
+                    className={`py-2 px-2 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                      teamType === 'to_ttks'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Tổ TTKS
+                  </button>
+                </div>
+              </div>
+
+              {/* Name field */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tên {teamType === 'doi' ? 'Đội' : teamType === 'to_dia_ban' ? 'Tổ địa bàn' : 'Tổ TTKS'} *
+                </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="VD: Tổ Tuần tra Số 1, Tổ Cơ động..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  placeholder={
+                    teamType === 'doi'
+                      ? 'VD: Đội CSGT ĐB số 4'
+                      : teamType === 'to_dia_ban'
+                      ? 'VD: Tổ địa bàn Sơn Hoà'
+                      : 'VD: Tổ TTKS Số 1'
+                  }
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-xl text-xs font-bold outline-hidden"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Parent Team Selection (for to_dia_ban & to_ttks) */}
+              {teamType !== 'doi' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Cấp tổ đội *</label>
-                  <select
-                    value={teamType}
-                    onChange={(e) => {
-                      const nextType = e.target.value as 'doi' | 'to_dia_ban' | 'to_ttks';
-                      setTeamType(nextType);
-                      if (nextType === 'doi') setParentTeamId('');
-                    }}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
-                  >
-                    <option value="doi">1. Cấp Đội (Đơn vị quản lý cấp trên)</option>
-                    <option value="to_dia_ban">2. Tổ địa bàn (Trực thuộc Đội)</option>
-                    <option value="to_ttks">3. Tổ TTKS (Trực thuộc Đội hoặc Tổ địa bàn)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Đơn vị cấp trên trực thuộc
-                    {teamType !== 'doi' && (
-                      <span className="ml-1 text-rose-500">*</span>
-                    )}
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {teamType === 'to_dia_ban' ? 'Trực thuộc Đội nào? *' : 'Trực thuộc Đội hoặc Tổ địa bàn nào? *'}
                   </label>
                   <select
+                    required
                     value={parentTeamId}
                     onChange={(e) => setParentTeamId(e.target.value)}
-                    disabled={teamType === 'doi'}
-                    required={teamType !== 'doi'}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-xl text-xs font-semibold outline-hidden"
                   >
-                    {teamType === 'doi' ? (
-                      <option value="">(Cấp Đội — Không trực thuộc đơn vị nào)</option>
-                    ) : teamType === 'to_dia_ban' ? (
+                    {teamType === 'to_dia_ban' ? (
                       <>
                         <option value="">--- Chọn Đội trực thuộc ---</option>
                         {doiTeams
                           .filter((t) => t.id !== editingTeam?.id)
                           .map((t) => (
                             <option key={t.id} value={t.id}>
-                              {t.name} (Đội)
+                              {t.name} (Cấp Đội)
                             </option>
                           ))}
                       </>
                     ) : (
                       <>
-                        <option value="">--- Chọn Đội hoặc Tổ địa bàn trực thuộc ---</option>
-                        <optgroup label="Cấp Đội (Tổ TTKS thuộc Đội trực tiếp)">
-                          {doiTeams
-                            .filter((t) => t.id !== editingTeam?.id)
-                            .map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
+                        <option value="">--- Chọn cấp trên ---</option>
+                        <optgroup label="Cấp Đội">
+                          {doiTeams.filter((t) => t.id !== editingTeam?.id).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </optgroup>
-                        <optgroup label="Cấp Tổ địa bàn (Tổ TTKS do Tổ địa bàn quản lý)">
-                          {diaBanTeams
-                            .filter((t) => t.id !== editingTeam?.id)
-                            .map((t) => {
-                              const parentDoi = doiTeams.find((d) => d.id === t.parentTeamId);
-                              return (
-                                <option key={t.id} value={t.id}>
-                                  {t.name} {parentDoi ? `(Thuộc: ${parentDoi.name})` : ''}
-                                </option>
-                              );
-                            })}
+                        <optgroup label="Cấp Tổ địa bàn">
+                          {diaBanTeams.filter((t) => t.id !== editingTeam?.id).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </optgroup>
                       </>
                     )}
                   </select>
                 </div>
-              </div>
+              )}
 
-              {/* Chỉ định Tổ trưởng */}
+              {/* Leader Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Chỉ định Tổ trưởng / Chỉ huy</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {teamType === 'doi' ? 'Chỉ định Chỉ huy Đội (Đội trưởng)' : 'Chỉ định Tổ trưởng / Chỉ huy'}
+                </label>
                 <select
                   value={leaderId}
                   onChange={(e) => {
@@ -399,77 +606,73 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                       setMemberIds(prev => [...prev, newId]);
                     }
                   }}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-xl text-xs outline-hidden"
                 >
                   <option value="">(Chưa chỉ định — Sẽ bổ nhiệm sau)</option>
                   {activeOfficers.map(o => (
                     <option key={o.id} value={o.id}>
-                      {o.rank} {o.fullName} ({o.badgeNumber})
+                      {o.rank} {o.fullName} ({o.badgeNumber}) - {o.position}
                     </option>
                   ))}
                 </select>
                 {activeOfficers.length === 0 && (
                   <p className="text-[11px] text-slate-400 mt-1">
-                    💡 Bạn có thể tạo khung Đội/Tổ trước, sau khi nhập danh sách Cán bộ chiến sĩ thì vào bổ nhiệm sau.
+                    💡 Hiện chưa có cán bộ trong danh mục. Bạn cứ tạo Đội/Tổ trước rồi vào bổ nhiệm sau.
                   </p>
                 )}
               </div>
 
-              {/* Lực lượng biên chế */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider text-slate-500">
-                  Phân công lực lượng biên chế tổ tuần tra (Chọn nhiều làm thành viên)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[180px] overflow-y-auto border border-slate-200 rounded-lg p-3 scrollbar-thin">
-                  {activeOfficers.map(o => {
-                    const isSelected = memberIds.includes(o.id) || o.id === leaderId;
-                    const isSelfLeader = o.id === leaderId;
+              {/* Members Checklist */}
+              {activeOfficers.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-slate-500">
+                    Phân công cán bộ chiến sĩ vào đơn vị (Chọn nhiều)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto border border-slate-200 rounded-xl p-3 scrollbar-thin">
+                    {activeOfficers.map(o => {
+                      const isSelected = memberIds.includes(o.id) || o.id === leaderId;
+                      const isSelfLeader = o.id === leaderId;
 
-                    return (
-                      <div
-                        key={o.id}
-                        onClick={() => !isSelfLeader && handleToggleMember(o.id)}
-                        className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
-                          isSelected 
-                            ? 'bg-blue-50 border-blue-200 text-blue-900' 
-                            : 'bg-slate-50/50 border-slate-150 text-slate-700 hover:bg-slate-100/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 truncate">
+                      return (
+                        <div
+                          key={o.id}
+                          onClick={() => !isSelfLeader && handleToggleMember(o.id)}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
+                            isSelected 
+                              ? 'bg-blue-50 border-blue-200 text-blue-900 font-semibold' 
+                              : 'hover:bg-slate-50 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <div className="truncate mr-2">
+                            <span>{o.rank} {o.fullName}</span>
+                            {isSelfLeader && <span className="ml-1 text-[10px] text-blue-600 font-bold">(Chỉ huy)</span>}
+                          </div>
                           {isSelected ? (
-                            <CheckSquare className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
                           ) : (
-                            <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <Square className="w-4 h-4 text-slate-400 shrink-0" />
                           )}
-                          <span className="truncate">
-                            <strong className="font-semibold">{o.fullName}</strong> ({o.rank})
-                          </span>
                         </div>
-
-                        {isSelfLeader && (
-                          <span className="text-[8px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                            Tổ trưởng
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
                 >
-                  Hủy bỏ
+                  Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer"
                 >
-                  Lưu cơ cấu tổ
+                  {editingTeam ? 'Lưu thay đổi' : 'Tạo đơn vị'}
                 </button>
               </div>
             </form>
@@ -477,22 +680,23 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
         </div>
       )}
 
-      {/* Custom Confirmation Modal */}
+      {/* MODAL: DELETE CONFIRM */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-slate-900">Xác nhận giải tán tổ tuần tra</h3>
-              <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                Bạn có chắc chắn muốn giải tán <strong className="text-slate-800">{deleteConfirm.name}</strong>? Lịch sử tuần tra cũ vẫn được lưu giữ.
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 border border-slate-150 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertCircle className="w-6 h-6 shrink-0" />
+              <h3 className="font-bold text-slate-800 text-sm">Xác nhận xóa đơn vị</h3>
             </div>
-            <div className="flex items-center justify-end gap-2 px-6 py-4 bg-slate-50 border-t border-slate-100">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa <strong>"{deleteConfirm.name}"</strong> khỏi hệ thống? Các phân công trực thuộc sẽ cần được cấu trúc lại.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
               >
-                Hủy bỏ
+                Hủy
               </button>
               <button
                 onClick={executeDelete}

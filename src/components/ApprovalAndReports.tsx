@@ -791,12 +791,16 @@ export default function ApprovalAndReports({
    <x:ExcelWorksheet>
     <x:Name>${escapeHtml(activeReportLabel)}</x:Name>
     <x:WorksheetOptions>
-     <x:DisplayGridlines/>
+     <x:FitToPage/>
      <x:Print>
+      <x:FitWidth>1</x:FitWidth>
+      <x:FitHeight>0</x:FitHeight>
       <x:ValidPrinterInfo/>
       <x:PaperSizeIndex>9</x:PaperSizeIndex>
       <x:Orientation>${isLandscape ? 'Landscape' : 'Portrait'}</x:Orientation>
      </x:Print>
+     <x:PageMargins x:Left="1.18" x:Right="0.59" x:Top="0.79" x:Bottom="0.79"/>
+     <x:DisplayGridlines/>
     </x:WorksheetOptions>
    </x:ExcelWorksheet>
   </x:ExcelWorksheets>
@@ -804,7 +808,24 @@ export default function ApprovalAndReports({
 </xml>
 <![endif]-->
 <style>
-  body { margin: 0; font-family: 'Times New Roman', serif; }
+  @page {
+    size: ${pageSize};
+    margin: ${pageMargin};
+    mso-page-orientation: ${isLandscape ? 'landscape' : 'portrait'};
+  }
+  body, table, td, th, div, span, p, a, h1, h2, h3, h4, h5, h6 {
+    font-family: 'Times New Roman', Times, serif !important;
+    color: #000000;
+  }
+  table {
+    border-collapse: collapse;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }
+  .table-data td, .table-data th {
+    border: 0.5pt solid windowtext !important;
+  }
+</style>
 `
         : `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"

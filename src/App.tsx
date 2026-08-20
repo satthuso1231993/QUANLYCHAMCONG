@@ -162,7 +162,7 @@ export default function App() {
   const primaryNavItems = [
     { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin'] },
-    { id: 'teams', label: 'Tổ tuần tra kiểm soát', shortLabel: 'Tổ đội', icon: ShieldAlert, roles: ['admin'] },
+    { id: 'teams', label: 'Cơ cấu Đơn vị (Đội & Tổ)', shortLabel: 'Đơn vị', icon: ShieldAlert, roles: ['admin'] },
     { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'doi', 'to_dia_ban'] },

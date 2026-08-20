@@ -1223,16 +1223,16 @@ export default function SecurityAndSettings({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Vai trò truy cập *</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Vai trò & Quyền hạn *</label>
                       <select
                         required
                         value={roleInput}
                         onChange={(e) => setRoleInput(e.target.value as UserRole)}
-                        className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                        className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-semibold outline-hidden"
                       >
-                        <option value="admin">Quản trị tối cao (Admin)</option>
-                        <option value="doi">Tài khoản cấp Đội</option>
-                        <option value="to_dia_ban">Tài khoản Tổ địa bàn</option>
+                        <option value="admin">Quản trị tối cao (Admin Phòng) — Toàn quyền toàn hệ thống</option>
+                        <option value="doi">Admin cấp Đội (Tài khoản Quản trị Đội & Tổ trực thuộc)</option>
+                        <option value="to_dia_ban">Admin cấp Tổ địa bàn (Tài khoản Quản trị Tổ địa bàn)</option>
                       </select>
                     </div>
 
