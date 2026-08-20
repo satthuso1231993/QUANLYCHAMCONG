@@ -31,6 +31,28 @@ export const initialSettings: SystemSettings = {
   paternityLeaveApprovalProcess: 'Chỉ huy đội kiểm tra hồ sơ, xác nhận số ngày nghỉ đúng chính sách, trình lãnh đạo duyệt và khóa dữ liệu tháng sau khi hoàn tất.',
   paternityLeavePayrollPolicy: 'Ngày nghỉ NVS không tính định lượng tuần tra, không phát sinh tiền làm đêm; việc chi trả chế độ thực hiện theo hồ sơ BHXH và quy định hiện hành.',
   paternityLeaveAttendancePolicy: 'Ngày NVS được chấm ký hiệu NVS trên bảng công, ưu tiên ghi đè lịch tuần tra nếu có khai báo thủ công cùng ngày để bảo đảm đúng chính sách.',
+  vehicles: [
+    'Xe Ô tô TTKS (BKS 78A-001.23)',
+    'Xe Ô tô TTKS (BKS 78A-002.56)',
+    'Mô tô Đặc chủng (BKS 78A1-0012)',
+    'Mô tô Đặc chủng (BKS 78A1-0034)',
+  ],
+  equipmentList: [
+    'Máy đo nồng độ cồn',
+    'Súng bắn tốc độ có ghi hình',
+    'Cân tải trọng xách tay',
+    'Camera giám sát hành trình nghiệp vụ',
+    'Bộ đàm liên lạc chuyên dụng',
+    'Gậy chỉ huy & Đèn tín hiệu ban đêm',
+    'Khóa còng số 8 & CCHT',
+    'Thiết bị kiểm tra ma túy',
+  ],
+  routesList: [
+    'Quốc lộ 1A (Km 1290 - Km 1350)',
+    'Quốc lộ 25 (Km 00 - Km 45)',
+    'Quốc lộ 29 (Km 00 - Km 60)',
+    'Tỉnh lộ ĐT 645 (Km 05 - Km 30)',
+  ],
 };
 
 export const initialOfficers: Officer[] = [];

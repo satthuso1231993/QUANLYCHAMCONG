@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { SystemSettings, AuditLog, User, Officer, UserRole, OvernightShiftAttendanceMode, Team } from '../types';
 import { getTeamTypeLabel, getUserRoleLabel } from '../utils/accessScope';
 import { getSQLiteSchema } from '../utils/helpers';
-import { Settings, Shield, Lock, FileText, Database, Check, History, Save, RefreshCw, AlertTriangle, Download, ArrowUp, Users, Trash2, Edit2, Plus } from 'lucide-react';
+import { initialSettings } from '../data/initialData';
+import { Settings, Shield, Lock, FileText, Database, Check, History, Save, RefreshCw, AlertTriangle, Download, ArrowUp, Users, Trash2, Edit2, Plus, Car, Wrench, MapPin, Truck, Sparkles } from 'lucide-react';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
 interface SecurityAndSettingsProps {
@@ -44,7 +45,7 @@ export default function SecurityAndSettings({
 }: SecurityAndSettingsProps) {
   const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
   const selectableTeams = React.useMemo(() => teams.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')), [teams]);
-  const [activeTab, setActiveTab] = useState<'rates' | 'password' | 'logs' | 'backup' | 'accounts'>('rates');
+  const [activeTab, setActiveTab] = useState<'rates' | 'vehicles_equipment' | 'password' | 'logs' | 'backup' | 'accounts'>('rates');
   const [deleteUserConfirm, setDeleteUserConfirm] = useState<{ id: string; name: string; usernameStr: string } | null>(null);
   const [logSearch, setLogSearch] = useState('');
   const [logFilter, setLogFilter] = useState<'all' | 'login' | 'edit' | 'other'>('all');
@@ -115,6 +116,59 @@ export default function SecurityAndSettings({
       'Ngày NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu cùng ngày có khai báo nghỉ thủ công.'
   );
 
+  // Vehicles, Equipments, and Routes per account
+  const [vehicles, setVehicles] = useState<string[]>(initialTargetConfig.vehicles || initialSettings.vehicles || []);
+  const [equipmentList, setEquipmentList] = useState<string[]>(initialTargetConfig.equipmentList || initialSettings.equipmentList || []);
+  const [routesList, setRoutesList] = useState<string[]>(initialTargetConfig.routesList || initialSettings.routesList || []);
+  const [newVehicleInput, setNewVehicleInput] = useState('');
+  const [newEquipmentInput, setNewEquipmentInput] = useState('');
+  const [newRouteInput, setNewRouteInput] = useState('');
+
+  const handleAddVehicle = (val?: string) => {
+    const text = (val || newVehicleInput).trim();
+    if (!text) return;
+    if (vehicles.includes(text)) {
+      alert('Phương tiện này đã có trong danh mục!');
+      return;
+    }
+    setVehicles([...vehicles, text]);
+    setNewVehicleInput('');
+  };
+
+  const handleRemoveVehicle = (index: number) => {
+    setVehicles(vehicles.filter((_, i) => i !== index));
+  };
+
+  const handleAddEquipment = (val?: string) => {
+    const text = (val || newEquipmentInput).trim();
+    if (!text) return;
+    if (equipmentList.includes(text)) {
+      alert('Trang thiết bị này đã có trong danh mục!');
+      return;
+    }
+    setEquipmentList([...equipmentList, text]);
+    setNewEquipmentInput('');
+  };
+
+  const handleRemoveEquipment = (index: number) => {
+    setEquipmentList(equipmentList.filter((_, i) => i !== index));
+  };
+
+  const handleAddRoute = (val?: string) => {
+    const text = (val || newRouteInput).trim();
+    if (!text) return;
+    if (routesList.includes(text)) {
+      alert('Tuyến đường này đã có trong danh mục!');
+      return;
+    }
+    setRoutesList([...routesList, text]);
+    setNewRouteInput('');
+  };
+
+  const handleRemoveRoute = (index: number) => {
+    setRoutesList(routesList.filter((_, i) => i !== index));
+  };
+
   const loadSettingsToForm = (s: SystemSettings) => {
     setRationRate(s.rationRate);
     setNightShiftRate(s.nightShiftRate);
@@ -161,6 +215,9 @@ export default function SecurityAndSettings({
       s.paternityLeaveAttendancePolicy ||
         'Ngày NVS hiển thị ký hiệu NVS trên bảng công và ưu tiên ghi đè lịch tuần tra nếu cùng ngày có khai báo nghỉ thủ công.'
     );
+    setVehicles(s.vehicles || initialSettings.vehicles || []);
+    setEquipmentList(s.equipmentList || initialSettings.equipmentList || []);
+    setRoutesList(s.routesList || initialSettings.routesList || []);
   };
 
   const handleTargetAccountChange = (newTarget: string) => {
@@ -444,6 +501,9 @@ export default function SecurityAndSettings({
       paternityLeaveApprovalProcess,
       paternityLeavePayrollPolicy,
       paternityLeaveAttendancePolicy,
+      vehicles,
+      equipmentList,
+      routesList,
     };
 
     if (setAccountSettings) {
@@ -552,6 +612,16 @@ export default function SecurityAndSettings({
             >
               <Settings className="w-4 h-4 shrink-0" />
               <span>Cấu hình Định mức</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('vehicles_equipment')}
+              className={`w-full text-left px-4 py-3 text-xs font-semibold flex items-center gap-3 transition-colors ${
+                activeTab === 'vehicles_equipment' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-600'
+              }`}
+            >
+              <Car className="w-4 h-4 shrink-0 text-blue-600" />
+              <span>Phương tiện & Thiết bị</span>
             </button>
 
             <button
@@ -1049,12 +1119,275 @@ export default function SecurityAndSettings({
 
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>Cập nhật cấu hình</span>
+                <span>Cập nhật cấu hình định mức</span>
               </button>
             </form>
+          )}
+
+          {/* TAB: VEHICLES & EQUIPMENT CONFIGURATION (PER-ACCOUNT) */}
+          {activeTab === 'vehicles_equipment' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                    <Car className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm">Danh Mục Phương Tiện & Trang Thiết Bị Nghiệp Vụ</h3>
+                    <p className="text-[11px] text-slate-500">Cấu hình danh sách phương tiện, thiết bị kỹ thuật và tuyến đường lưu riêng theo tài khoản đơn vị</p>
+                  </div>
+                </div>
+
+                {currentUser.role === 'admin' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">Đơn vị cấu hình:</span>
+                    <select
+                      value={selectedAccountTarget}
+                      onChange={(e) => handleTargetAccountChange(e.target.value)}
+                      className="px-3 py-1.5 bg-blue-50/70 border border-blue-250 rounded-lg text-xs font-bold text-blue-900 outline-hidden"
+                    >
+                      <option value="default">⭐ Toàn hệ thống (Mặc định)</option>
+                      {users.filter(u => u.role !== 'admin').map((u) => (
+                        <option key={u.id} value={`user_${u.id}`}>
+                          {u.fullName} ({u.role === 'doi' ? 'Cấp Đội' : 'Tổ địa bàn'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 1: VEHICLES */}
+              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-indigo-600" />
+                    <h4 className="text-xs font-bold text-slate-800 uppercase">1. Danh mục Phương tiện TTKS ({vehicles.length})</h4>
+                  </div>
+                </div>
+
+                {/* Quick Add Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-400">Gợi ý nhanh:</span>
+                  {['Xe Ô tô TTKS (BKS 78A-001.23)', 'Xe Ô tô TTKS (BKS 78A-002.56)', 'Mô tô Đặc chủng (BKS 78A1-0012)', 'Mô tô Đặc chủng (BKS 78A1-0034)', 'Xe Bán tải Chuyên dùng (BKS 78A-004.89)'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAddVehicle(preset)}
+                      className="text-[10.5px] px-2 py-0.5 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md transition-colors font-medium cursor-pointer"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Add Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newVehicleInput}
+                    onChange={(e) => setNewVehicleInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddVehicle(); } }}
+                    placeholder="Nhập tên phương tiện & BKS (VD: Xe Ô tô TTKS BKS 78A-005.67)..."
+                    className="flex-1 px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-xl text-xs outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddVehicle()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm</span>
+                  </button>
+                </div>
+
+                {/* Vehicle Badges List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {vehicles.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic col-span-2">Chưa có phương tiện nào được cấu hình.</p>
+                  ) : (
+                    vehicles.map((v, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                          <span className="truncate">{v}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVehicle(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Xóa phương tiện này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION 2: EQUIPMENT */}
+              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-amber-600" />
+                    <h4 className="text-xs font-bold text-slate-800 uppercase">2. Danh mục Trang thiết bị Kỹ thuật Nghiệp vụ & CCHT ({equipmentList.length})</h4>
+                  </div>
+                </div>
+
+                {/* Quick Add Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-400">Gợi ý nhanh:</span>
+                  {[
+                    'Máy đo nồng độ cồn', 
+                    'Súng bắn tốc độ có ghi hình', 
+                    'Cân tải trọng xách tay', 
+                    'Camera giám sát hành trình', 
+                    'Bộ đàm liên lạc chuyên dụng', 
+                    'Gậy chỉ huy & Đèn tín hiệu', 
+                    'Khóa còng số 8 & CCHT', 
+                    'Thiết bị kiểm tra ma túy'
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAddEquipment(preset)}
+                      className="text-[10.5px] px-2 py-0.5 bg-white hover:bg-amber-50 text-slate-600 hover:text-amber-800 border border-slate-200 hover:border-amber-300 rounded-md transition-colors font-medium cursor-pointer"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Add Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newEquipmentInput}
+                    onChange={(e) => setNewEquipmentInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); } }}
+                    placeholder="Nhập tên thiết bị nghiệp vụ / CCHT mới (VD: Thiết bị đo độ truyền sáng kính xe)..."
+                    className="flex-1 px-3 py-2 bg-white border border-slate-250 focus:border-amber-500 rounded-xl text-xs outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddEquipment()}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm</span>
+                  </button>
+                </div>
+
+                {/* Equipment Badges List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {equipmentList.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic col-span-2">Chưa có trang thiết bị nào được cấu hình.</p>
+                  ) : (
+                    equipmentList.map((eq, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          <span className="truncate">{eq}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEquipment(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Xóa thiết bị này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION 3: ROUTES */}
+              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-xs font-bold text-slate-800 uppercase">3. Danh mục Tuyến đường & Địa bàn Tuần tra Phụ trách ({routesList.length})</h4>
+                  </div>
+                </div>
+
+                {/* Quick Add Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-400">Gợi ý nhanh:</span>
+                  {['Quốc lộ 1A (Km 1290 - Km 1350)', 'Quốc lộ 25 (Km 00 - Km 45)', 'Quốc lộ 29 (Km 00 - Km 60)', 'Tỉnh lộ ĐT 645 (Km 05 - Km 30)', 'Tuyến Nội thị Trung tâm TP', 'Đường Liên huyện Tuy Hòa - Tây Hòa'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAddRoute(preset)}
+                      className="text-[10.5px] px-2 py-0.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 rounded-md transition-colors font-medium cursor-pointer"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Add Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newRouteInput}
+                    onChange={(e) => setNewRouteInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRoute(); } }}
+                    placeholder="Nhập tên tuyến đường / cung đoạn phụ trách (VD: Quốc lộ 1D Km 00 - Km 15)..."
+                    className="flex-1 px-3 py-2 bg-white border border-slate-250 focus:border-emerald-500 rounded-xl text-xs outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddRoute()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm</span>
+                  </button>
+                </div>
+
+                {/* Routes Badges List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {routesList.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic col-span-2">Chưa có tuyến đường nào được cấu hình.</p>
+                  ) : (
+                    routesList.map((rt, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="truncate">{rt}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRoute(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Xóa tuyến này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveRates}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all transform hover:-translate-y-0.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Lưu Cấu Hình Phương Tiện & Trang Thiết Bị</span>
+                </button>
+              </div>
+            </div>
           )}
 
           {/* TAB 2: PASSWORD CHANGE */}

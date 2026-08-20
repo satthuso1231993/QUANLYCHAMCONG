@@ -177,6 +177,9 @@ export interface SystemSettings {
   paternityLeaveApprovalProcess?: string; // Quy trình phê duyệt nghỉ vợ sinh
   paternityLeavePayrollPolicy?: string; // Liên kết chính sách lương cho nghỉ vợ sinh
   paternityLeaveAttendancePolicy?: string; // Liên kết chính sách chấm công cho nghỉ vợ sinh
+  vehicles?: string[]; // Danh sách Phương tiện TTKS cấu hình theo tài khoản / đơn vị
+  equipmentList?: string[]; // Danh sách Trang thiết bị kỹ thuật nghiệp vụ & CCHT theo tài khoản / đơn vị
+  routesList?: string[]; // Danh sách Tuyến đường tuần tra kiểm soát theo tài khoản / đơn vị
 }
 
 export type ReportTemplateId =

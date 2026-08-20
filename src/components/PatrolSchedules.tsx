@@ -127,6 +127,26 @@ export default function PatrolSchedules({
     'Đi bộ / Tuần tra cơ động',
   ];
 
+  const activeEquipments = useMemo(() => {
+    if (settings.equipmentList && settings.equipmentList.length > 0) return settings.equipmentList;
+    return standardEquipments;
+  }, [settings.equipmentList]);
+
+  const activeVehicles = useMemo(() => {
+    if (settings.vehicles && settings.vehicles.length > 0) return settings.vehicles;
+    return standardVehicles;
+  }, [settings.vehicles]);
+
+  const activeRoutes = useMemo(() => {
+    if (settings.routesList && settings.routesList.length > 0) return settings.routesList;
+    return [
+      'Quốc lộ 1A (Km 1290 - Km 1350)',
+      'Quốc lộ 25 (Km 00 - Km 45)',
+      'Quốc lộ 29 (Km 00 - Km 60)',
+      'Tỉnh lộ ĐT 645 (Km 05 - Km 30)',
+    ];
+  }, [settings.routesList]);
+
   const missionTypes: MissionType[] = [
     'Tuần tra kiểm soát',
     'Chuyên đề nồng độ cồn',
@@ -1153,11 +1173,17 @@ export default function PatrolSchedules({
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tuyến đường tuần tra cụ thể</label>
                   <input
                     type="text"
+                    list="routesList"
                     value={route}
                     onChange={(e) => setRoute(e.target.value)}
-                    placeholder="VD: QL1A Km 1290 - Km 1330..."
+                    placeholder="Chọn hoặc nhập tuyến đường..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                   />
+                  <datalist id="routesList">
+                    {activeRoutes.map((r, i) => (
+                      <option key={i} value={r} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
@@ -1200,7 +1226,7 @@ export default function PatrolSchedules({
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                   />
                   <datalist id="vehiclesList">
-                    {standardVehicles.map((v, i) => (
+                    {activeVehicles.map((v, i) => (
                       <option key={i} value={v} />
                     ))}
                   </datalist>
@@ -1208,11 +1234,22 @@ export default function PatrolSchedules({
 
                 {/* TRANG THIẾT BỊ KỸ THUẬT NGHIỆP VỤ */}
                 <div className="col-span-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200/80 space-y-2">
-                  <label className="block text-[11px] font-bold text-slate-700">
-                    Trang thiết bị kỹ thuật nghiệp vụ mang theo ca trực:
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Trang thiết bị kỹ thuật nghiệp vụ mang theo ca trực ({equipment.length} đã chọn):
+                    </label>
+                    {equipment.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setEquipment([])}
+                        className="text-[10px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        Bỏ chọn hết
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {standardEquipments.map((eq, i) => {
+                    {activeEquipments.map((eq, i) => {
                       const isSelected = equipment.includes(eq);
                       return (
                         <button
