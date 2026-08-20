@@ -75,8 +75,8 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !leaderId) {
-      alert('Vui lòng nhập Tên tổ tuần tra và bổ nhiệm Tổ trưởng/Chỉ huy!');
+    if (!name.trim()) {
+      alert('Vui lòng nhập Tên đơn vị / Tổ tuần tra!');
       return;
     }
 
@@ -97,9 +97,9 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
       finalParentTeamId = parentTeamId || undefined;
     }
 
-    // Ensure leader is part of the members
+    // Ensure leader is part of the members if selected
     let finalMembers = [...memberIds];
-    if (!finalMembers.includes(leaderId)) {
+    if (leaderId && !finalMembers.includes(leaderId)) {
       finalMembers.push(leaderId);
     }
 
@@ -238,7 +238,7 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                           </span>
                         </div>
                       ) : (
-                        <p className="text-xs text-rose-500 italic mt-1">Chưa chỉ định tổ trưởng hoặc cán bộ bị xóa</p>
+                        <p className="text-xs text-slate-500 italic mt-1">(Chưa chỉ định Tổ trưởng / Chỉ huy)</p>
                       )}
                     </div>
 
@@ -389,27 +389,30 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
               {/* Chỉ định Tổ trưởng */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Chỉ định Tổ trưởng *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Chỉ định Tổ trưởng / Chỉ huy</label>
                 <select
-                  required
                   value={leaderId}
                   onChange={(e) => {
                     const newId = e.target.value;
                     setLeaderId(newId);
-                    // Automatically append to memberIds if not exist
                     if (newId && !memberIds.includes(newId)) {
                       setMemberIds(prev => [...prev, newId]);
                     }
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                 >
-                  <option value="" disabled>--- Chọn cán bộ làm Tổ trưởng ---</option>
+                  <option value="">(Chưa chỉ định — Sẽ bổ nhiệm sau)</option>
                   {activeOfficers.map(o => (
                     <option key={o.id} value={o.id}>
                       {o.rank} {o.fullName} ({o.badgeNumber})
                     </option>
                   ))}
                 </select>
+                {activeOfficers.length === 0 && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    💡 Bạn có thể tạo khung Đội/Tổ trước, sau khi nhập danh sách Cán bộ chiến sĩ thì vào bổ nhiệm sau.
+                  </p>
+                )}
               </div>
 
               {/* Lực lượng biên chế */}

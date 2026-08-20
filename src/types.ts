@@ -141,7 +141,7 @@ export interface SystemSettings {
   rationRate: number; // VND/ngày (Mặc định 75,000)
   nightShiftRate: number; // VND/lượt (Mặc định 200,000)
   departmentName: string; // Tên phòng (e.g. PHÒNG CẢNH SÁT GIAO THÔNG)
-  unitName: string;       // Công an cấp trên (e.g. CÔNG AN TỈNH LÂM ĐỒNG)
+  unitName: string;       // Công an cấp trên (e.g. CÔNG AN TỈNH)
   overnightShiftAttendanceMode?: OvernightShiftAttendanceMode; // Phương án tính công ca qua đêm
   symbolWork?: string;    // Ký hiệu làm việc (Mặc định 'x')
   symbolMission?: string; // Ký hiệu đi công tác (Mặc định 'Ct')
@@ -151,9 +151,9 @@ export interface SystemSettings {
   symbolCompensation?: string; // Ký hiệu nghỉ bù (Mặc định 'Nb')
   symbolMaternity?: string;    // Ký hiệu nghỉ thai sản (Mặc định 'Ts')
   symbolRest?: string;         // Ký hiệu nghỉ dưỡng (Mặc định 'Nd')
-  signerPreparer?: string;     // Tên người lập biểu/chấm công (Mặc định 'Thiếu tá Đào Hải Dương')
-  signerCommander?: string;    // Tên chỉ huy đội (Mặc định 'Trung tá Nguyễn Khánh Tiên')
-  signerLeader?: string;       // Tên lãnh đạo đơn vị/phòng (Mặc định 'Thượng tá Nguyễn Thành Phương')
+  signerPreparer?: string;     // Tên người lập biểu/chấm công
+  signerCommander?: string;    // Tên chỉ huy đội
+  signerLeader?: string;       // Tên lãnh đạo đơn vị/phòng
   signerPreparerTitle?: string; // Chức danh hiển thị (VD: NGƯỜI CHẤM CÔNG)
   signerCommanderTitle?: string; // Chức danh hiển thị (VD: CHỈ HUY ĐỘI)
   signerCommanderSubTitle?: string; // Dòng phụ (VD: ĐỘI TRƯỞNG)

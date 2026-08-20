@@ -38,7 +38,7 @@ insert into public.system_settings (
   75000,
   200000,
   'PHÒNG CẢNH SÁT GIAO THÔNG',
-  'CÔNG AN TỈNH LÂM ĐỒNG',
+  'CÔNG AN TỈNH',
   'standard',
   'x',
   'Ct',
@@ -48,9 +48,9 @@ insert into public.system_settings (
   'Nb',
   'Ts',
   'Nd',
-  'Thiếu tá Đào Hải Dương',
-  'Trung tá Nguyễn Khánh Tiên',
-  'Thượng tá Nguyễn Thành Phương',
+  null,
+  null,
+  null,
   'NGƯỜI CHẤM CÔNG',
   'CHỈ HUY ĐỘI',
   'ĐỘI TRƯỞNG',
@@ -101,9 +101,7 @@ set
 
 insert into public.users (id, username, password, role, full_name, officer_id, managed_team_id)
 values
-  ('U001', 'admin', '123456', 'admin', 'Quản trị viên Hệ thống', null, null),
-  ('U002', 'doi01', '123456', 'doi', 'Tài khoản Đội mẫu', null, null),
-  ('U003', 'todia01', '123456', 'to_dia_ban', 'Tài khoản Tổ địa bàn mẫu', null, null)
+  ('U001', 'admin', '123456', 'admin', 'Quản trị viên Hệ thống', null, null)
 on conflict (id) do update
 set
   username = excluded.username,

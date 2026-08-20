@@ -55,9 +55,9 @@ export default function ApprovalAndReports({
   const unitName = settings.unitName || 'CÔNG AN TỈNH';
   const departmentName = settings.departmentName || 'PHÒNG CẢNH SÁT GIAO THÔNG';
 
-  const sPreparer = settings.signerPreparer || 'Thiếu tá Đào Hải Dương';
-  const sCommander = settings.signerCommander || 'Trung tá Nguyễn Khánh Tiên';
-  const sLeader = settings.signerLeader || 'Thượng tá Nguyễn Thành Phương';
+  const sPreparer = settings.signerPreparer || '';
+  const sCommander = settings.signerCommander || '';
+  const sLeader = settings.signerLeader || '';
   const signerPreparerTitle = settings.signerPreparerTitle || 'NGƯỜI CHẤM CÔNG';
   const signerCommanderTitle = settings.signerCommanderTitle || 'CHỈ HUY ĐỘI';
   const signerCommanderSubTitle = settings.signerCommanderSubTitle || 'ĐỘI TRƯỞNG';
@@ -720,9 +720,9 @@ export default function ApprovalAndReports({
       return d.getDay() === 0;
     };
 
-    const sPreparer = settings.signerPreparer || 'Thiếu tá Đào Hải Dương';
-    const sCommander = settings.signerCommander || 'Trung tá Nguyễn Khánh Tiên';
-    const sLeader = settings.signerLeader || 'Thượng tá Nguyễn Thành Phương';
+    const sPreparer = settings.signerPreparer || '';
+    const sCommander = settings.signerCommander || '';
+    const sLeader = settings.signerLeader || '';
     const sigSpace60 = docType === 'word' ? 54 : 60;
     const sigSpace75 = docType === 'word' ? 66 : 75;
     const sigSpace80 = docType === 'word' ? 76 : 80;

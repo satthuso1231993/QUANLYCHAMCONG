@@ -259,7 +259,7 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (key, value) VALUES ('ration_rate', '75000');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('night_shift_rate', '200000');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('department_name', 'PHÒNG CẢNH SÁT GIAO THÔNG');
-INSERT OR IGNORE INTO settings (key, value) VALUES ('unit_name', 'CÔNG AN TỈNH LÂM ĐỒNG');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('unit_name', 'CÔNG AN TỈNH');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('overnight_shift_attendance_mode', 'standard');
 
 -- CHÈN TÀI KHOẢN QUẢN TRỊ VIÊN MẶC ĐỊNH

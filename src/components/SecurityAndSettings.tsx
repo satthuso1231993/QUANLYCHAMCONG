@@ -63,9 +63,9 @@ export default function SecurityAndSettings({
   const [symbolRest, setSymbolRest] = useState(settings.symbolRest || 'Nd');
 
   // Signer fields with safe fallbacks
-  const [signerPreparer, setSignerPreparer] = useState(settings.signerPreparer || 'Thiếu tá Đào Hải Dương');
-  const [signerCommander, setSignerCommander] = useState(settings.signerCommander || 'Trung tá Nguyễn Khánh Tiên');
-  const [signerLeader, setSignerLeader] = useState(settings.signerLeader || 'Thượng tá Nguyễn Thành Phương');
+  const [signerPreparer, setSignerPreparer] = useState(settings.signerPreparer || '');
+  const [signerCommander, setSignerCommander] = useState(settings.signerCommander || '');
+  const [signerLeader, setSignerLeader] = useState(settings.signerLeader || '');
   const [signerPreparerTitle, setSignerPreparerTitle] = useState(settings.signerPreparerTitle || 'NGƯỜI CHẤM CÔNG');
   const [signerCommanderTitle, setSignerCommanderTitle] = useState(settings.signerCommanderTitle || 'CHỈ HUY ĐỘI');
   const [signerCommanderSubTitle, setSignerCommanderSubTitle] = useState(settings.signerCommanderSubTitle || 'ĐỘI TRƯỞNG');
@@ -520,7 +520,7 @@ export default function SecurityAndSettings({
                     required
                     value={unitName}
                     onChange={(e) => setUnitName(e.target.value)}
-                    placeholder="VD: CÔNG AN TỈNH LÂM ĐỒNG"
+                    placeholder="VD: CÔNG AN TỈNH..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
                   />
                 </div>
@@ -789,13 +789,12 @@ export default function SecurityAndSettings({
                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cấu hình chức danh & Người ký phê duyệt biểu mẫu</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Người lập biểu/Chấm công</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Người lập biểu / Chấm công</label>
                     <input
                       type="text"
-                      required
                       value={signerPreparer}
                       onChange={(e) => setSignerPreparer(e.target.value)}
-                      placeholder="VD: Thiếu tá Đào Hải Dương"
+                      placeholder="VD: Cán bộ chấm công..."
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-medium"
                     />
                   </div>
@@ -803,10 +802,9 @@ export default function SecurityAndSettings({
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Chỉ huy Đội (Đội trưởng)</label>
                     <input
                       type="text"
-                      required
                       value={signerCommander}
                       onChange={(e) => setSignerCommander(e.target.value)}
-                      placeholder="VD: Trung tá Nguyễn Khánh Tiên"
+                      placeholder="VD: Chỉ huy Đội..."
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-medium"
                     />
                   </div>
@@ -814,10 +812,9 @@ export default function SecurityAndSettings({
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Lãnh đạo đơn vị (KT. Trưởng phòng)</label>
                     <input
                       type="text"
-                      required
                       value={signerLeader}
                       onChange={(e) => setSignerLeader(e.target.value)}
-                      placeholder="VD: Thượng tá Nguyễn Thành Phương"
+                      placeholder="VD: Lãnh đạo Phòng..."
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs font-medium"
                     />
                   </div>
@@ -1241,25 +1238,38 @@ export default function SecurityAndSettings({
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                        Phạm vi quản lý tổ đội
+                        {roleInput === 'admin'
+                          ? 'Phạm vi quản lý'
+                          : roleInput === 'doi'
+                          ? 'Chọn Đội gắn với tài khoản này *'
+                          : 'Chọn Tổ địa bàn gắn với tài khoản này *'}
                         {roleInput !== 'admin' && assignableTeams.length === 0 && (
-                          <span className="ml-1 text-amber-600">⚠️ Chưa có đơn vị loại này</span>
+                          <span className="ml-1 text-amber-600 font-bold">⚠️ Chưa tạo {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} trong Cơ cấu tổ</span>
                         )}
                       </label>
                       <select
                         value={managedTeamIdInput}
-                        onChange={(e) => setManagedTeamIdInput(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setManagedTeamIdInput(val);
+                          if (val) {
+                            const found = teams.find(t => t.id === val);
+                            if (found && (!fullNameInput.trim() || fullNameInput.startsWith('Tài khoản '))) {
+                              setFullNameInput(`Tài khoản ${found.name}`);
+                            }
+                          }
+                        }}
                         disabled={roleInput === 'admin' || (roleInput !== 'admin' && assignableTeams.length === 0)}
                         className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
                       >
                         {roleInput === 'admin' ? (
-                          <option value="">(Quản trị viên — Toàn hệ thống)</option>
+                          <option value="">(Quản trị viên — Toàn quyền toàn hệ thống)</option>
                         ) : assignableTeams.length === 0 ? (
                           <option value="">
-                            ⚠️ Chưa có {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} nào được tạo — TẠM BỎ QUA (sau đó sửa lại)
+                            ⚠️ Chưa có {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} nào — Hãy vào "Cơ cấu tổ" tạo trước
                           </option>
                         ) : (
-                          <option value="">--- Chọn phạm vi quản lý ---</option>
+                          <option value="">--- Chọn {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} gắn với tài khoản ---</option>
                         )}
                         {assignableTeams.map((team) => (
                           <option key={team.id} value={team.id}>
@@ -1268,12 +1278,14 @@ export default function SecurityAndSettings({
                         ))}
                       </select>
                       {roleInput !== 'admin' && !managedTeamIdInput && assignableTeams.length > 0 && (
-                        <p className="text-[10px] text-amber-600 font-medium mt-1">⚠️ Tài khoản cấp Đội hoặc Tổ địa bàn nên được gán đúng phạm vi để lọc dữ liệu.</p>
+                        <p className="text-[10px] text-amber-600 font-medium mt-1">
+                          ⚠️ Hãy chọn {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} phụ trách để tài khoản này chỉ quản lý đúng phạm vi của mình.
+                        </p>
                       )}
                       {roleInput !== 'admin' && assignableTeams.length === 0 && (
-                        <p className="text-[10px] text-amber-700 font-medium mt-1">
-                          💡 Hiện chưa có {roleInput === 'doi' ? '<b>Đội</b>' : '<b>Tổ địa bàn</b>'} nào trong "Cơ cấu tổ". Bạn <b>có thể tạo tài khoản trước</b>, sau khi tạo xong {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} thì vào đây sửa & gán phạm vi nhé.
-                        </p>
+                        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 leading-relaxed font-medium">
+                          💡 <strong>Quy trình chuẩn:</strong> Bạn hãy vào mục <strong>"Cơ cấu tổ"</strong> để tạo danh sách các <strong>{roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'}</strong> trước. Sau đó quay lại đây, hệ thống sẽ tự động hiển thị tên Đội để bạn chọn gắn tài khoản.
+                        </div>
                       )}
                       {roleInput === 'doi' && managedTeamIdInput && (
                         <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các đơn vị cấp Đội. Tài khoản này chỉ xem & chấm công <b>riêng đội được gán</b> (không thấy các Tổ địa bàn trực thuộc).</p>
