@@ -151,8 +151,15 @@ export default function SecurityAndSettings({
     }
 
     if (roleInput !== 'admin' && !managedTeamIdInput) {
-      setAccountError('Tài khoản cấp Đội/Tổ địa bàn phải được gán phạm vi quản lý!');
-      return;
+      if (roleInput === 'doi' && teams.some(t => (t.teamType || 'doi') === 'doi')) {
+        setAccountError('Tài khoản cấp Đội phải được gán phạm vi quản lý (Đội trực thuộc)!');
+        return;
+      }
+      if (roleInput === 'to_dia_ban' && teams.some(t => (t.teamType || 'doi') === 'to_dia_ban')) {
+        setAccountError('Tài khoản Tổ địa bàn phải được gán phạm vi quản lý (Tổ địa bàn trực thuộc)!');
+        return;
+      }
+      // Nếu chưa có tổ đội nào của loại đó → cho phép tạo tài khoản, gán phạm vi sau
     }
 
     if (roleInput === 'doi' && selectedManagedTeam && (selectedManagedTeam.teamType || 'doi') !== 'doi') {
@@ -1233,60 +1240,82 @@ export default function SecurityAndSettings({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Phạm vi quản lý tổ đội</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Phạm vi quản lý tổ đội
+                        {roleInput !== 'admin' && assignableTeams.length === 0 && (
+                          <span className="ml-1 text-amber-600">⚠️ Chưa có đơn vị loại này</span>
+                        )}
+                      </label>
                       <select
                         value={managedTeamIdInput}
                         onChange={(e) => setManagedTeamIdInput(e.target.value)}
-                        disabled={roleInput === 'admin'}
+                        disabled={roleInput === 'admin' || (roleInput !== 'admin' && assignableTeams.length === 0)}
                         className="w-full px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
                       >
-                        <option value="">--- Chọn phạm vi quản lý ---</option>
+                        {roleInput === 'admin' ? (
+                          <option value="">(Quản trị viên — Toàn hệ thống)</option>
+                        ) : assignableTeams.length === 0 ? (
+                          <option value="">
+                            ⚠️ Chưa có {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} nào được tạo — TẠM BỎ QUA (sau đó sửa lại)
+                          </option>
+                        ) : (
+                          <option value="">--- Chọn phạm vi quản lý ---</option>
+                        )}
                         {assignableTeams.map((team) => (
                           <option key={team.id} value={team.id}>
                             {team.name} ({getTeamTypeLabel(team.teamType)})
                           </option>
                         ))}
                       </select>
-                      {roleInput !== 'admin' && !managedTeamIdInput && (
-                        <p className="text-[10px] text-amber-600 font-medium mt-1">⚠️ Tài khoản cấp Đội hoặc Tổ địa bàn phải được gán đúng phạm vi để lọc dữ liệu.</p>
+                      {roleInput !== 'admin' && !managedTeamIdInput && assignableTeams.length > 0 && (
+                        <p className="text-[10px] text-amber-600 font-medium mt-1">⚠️ Tài khoản cấp Đội hoặc Tổ địa bàn nên được gán đúng phạm vi để lọc dữ liệu.</p>
                       )}
-                      {roleInput === 'doi' && (
-                        <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các đơn vị cấp Đội. Tài khoản này sẽ thấy đội được gán và toàn bộ tổ địa bàn trực thuộc.</p>
+                      {roleInput !== 'admin' && assignableTeams.length === 0 && (
+                        <p className="text-[10px] text-amber-700 font-medium mt-1">
+                          💡 Hiện chưa có {roleInput === 'doi' ? '<b>Đội</b>' : '<b>Tổ địa bàn</b>'} nào trong "Cơ cấu tổ". Bạn <b>có thể tạo tài khoản trước</b>, sau khi tạo xong {roleInput === 'doi' ? 'Đội' : 'Tổ địa bàn'} thì vào đây sửa & gán phạm vi nhé.
+                        </p>
                       )}
-                      {roleInput === 'to_dia_ban' && (
+                      {roleInput === 'doi' && managedTeamIdInput && (
+                        <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các đơn vị cấp Đội. Tài khoản này chỉ xem & chấm công <b>riêng đội được gán</b> (không thấy các Tổ địa bàn trực thuộc).</p>
+                      )}
+                      {roleInput === 'to_dia_ban' && managedTeamIdInput && (
                         <p className="text-[10px] text-slate-500 font-medium mt-1">Chỉ hiển thị các Tổ địa bàn. Tài khoản này chỉ được chấm công trong tổ địa bàn được gán.</p>
                       )}
                     </div>
 
-                    {roleInput === 'doi' && managedTeamIdInput && (
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                          Cấu trúc quản lý của tài khoản Đội
-                        </div>
-                        <div className="mt-1 text-xs font-semibold text-emerald-900">
-                          Đội phụ trách: {selectedManagedTeam?.name || 'Chưa xác định'}
-                        </div>
-                        <div className="mt-2 text-[11px] text-emerald-900">
-                          Tổ địa bàn trực thuộc: {subordinateTeamsPreview.length}
-                        </div>
-                        {subordinateTeamsPreview.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {subordinateTeamsPreview.map((team) => (
-                              <span
-                                key={team.id}
-                                className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-800"
-                              >
-                                {team.name}
-                              </span>
-                            ))}
+                      {roleInput === 'doi' && managedTeamIdInput && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                            Phạm vi xem dữ liệu của tài khoản Đội
                           </div>
-                        ) : (
-                          <p className="mt-2 text-[10px] text-amber-700">
-                            Đội này hiện chưa có Tổ địa bàn trực thuộc. Hãy khai báo trong phần cơ cấu tổ đội nếu cần.
+                          <div className="mt-1 text-xs font-semibold text-emerald-900">
+                            Đội phụ trách: {selectedManagedTeam?.name || 'Chưa xác định'}
+                          </div>
+                          <p className="mt-2 text-[10px] text-emerald-700">
+                            ✅ Tài khoản này sẽ <b>chỉ xem và chấm công của chính đội được gán</b>.<br />
+                            Các Tổ địa bàn trực thuộc (nếu có) — được xem bởi các tài khoản cấp Tổ địa bàn riêng lẻ.
                           </p>
-                        )}
-                      </div>
-                    )}
+                          <div className="mt-2 text-[11px] text-emerald-900">
+                            Tổ địa bàn trực thuộc (chỉ tham khảo): {subordinateTeamsPreview.length}
+                          </div>
+                          {subordinateTeamsPreview.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {subordinateTeamsPreview.map((team) => (
+                                <span
+                                  key={team.id}
+                                  className="rounded-full border border-emerald-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-800"
+                                >
+                                  {team.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-[10px] text-slate-500 italic">
+                              Đội này hiện chưa có Tổ địa bàn trực thuộc.
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">Cán bộ liên kết danh tính</label>
@@ -1380,12 +1409,17 @@ export default function SecurityAndSettings({
                                     Phạm vi: {managedTeam.name} ({getTeamTypeLabel(managedTeam.teamType)})
                                   </span>
                                 )}
+                                {u.role !== 'admin' && !managedTeam && (
+                                  <span className="block mt-1 text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 inline-block">
+                                    ⚠️ Chưa gán phạm vi quản lý — Cần sửa lại sau!
+                                  </span>
+                                )}
                                 {u.role === 'doi' && (
-                                  <div className="mt-1 text-[10px] text-slate-500">
-                                    Quản lý tổ địa bàn:{' '}
+                                  <div className="mt-1 text-[10px] text-slate-400 italic">
+                                    🔹 Tổ địa bàn trực thuộc (tham khảo, <b>không xem được dữ liệu</b>):{' '}
                                     {managedSubordinateTeams.length > 0
                                       ? managedSubordinateTeams.map((team) => team.name).join(', ')
-                                      : 'Chưa có tổ địa bàn trực thuộc'}
+                                      : 'Không có'}
                                   </div>
                                 )}
                               </td>

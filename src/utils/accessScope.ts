@@ -8,26 +8,6 @@ export interface UserScope {
   allowedOfficerIds: string[];
 }
 
-const collectDescendantTeamIds = (teamId: string, teams: Team[]): string[] => {
-  const visited = new Set<string>();
-  const queue = [teamId];
-
-  while (queue.length > 0) {
-    const currentId = queue.shift();
-    if (!currentId || visited.has(currentId)) continue;
-    visited.add(currentId);
-    teams
-      .filter((team) => team.parentTeamId === currentId)
-      .forEach((childTeam) => {
-        if (!visited.has(childTeam.id)) {
-          queue.push(childTeam.id);
-        }
-      });
-  }
-
-  return Array.from(visited);
-};
-
 export const getUserRoleLabel = (role: User['role']) => {
   switch (role) {
     case 'admin':
@@ -68,10 +48,7 @@ export const resolveUserScope = (currentUser: User, teams: Team[]): UserScope =>
     };
   }
 
-  const allowedTeamIds =
-    currentUser.role === 'doi'
-      ? collectDescendantTeamIds(currentUser.managedTeamId, teams)
-      : [currentUser.managedTeamId];
+  const allowedTeamIds: string[] = [currentUser.managedTeamId];
 
   const allowedOfficerIds = Array.from(
     new Set(
