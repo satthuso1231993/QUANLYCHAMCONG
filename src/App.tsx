@@ -161,7 +161,7 @@ export default function App() {
   );
   const primaryNavItems = [
     { id: 'dashboard', label: 'Trang chủ Thống kê', shortLabel: 'Trang chủ', icon: LayoutDashboard, roles: ['admin', 'doi', 'to_dia_ban'] },
-    { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin'] },
+    { id: 'officers', label: 'Cán bộ chiến sĩ', shortLabel: 'Cán bộ', icon: Users, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'teams', label: 'Cơ cấu Đơn vị (Đội & Tổ)', shortLabel: 'Đơn vị', icon: ShieldAlert, roles: ['admin'] },
     { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'doi', 'to_dia_ban'] },
@@ -176,10 +176,17 @@ export default function App() {
     () => (userScope.canViewAll ? teams : teams.filter((team) => userScope.allowedTeamIds.includes(team.id))),
     [teams, userScope],
   );
-  const scopedOfficers = useMemo(
-    () => (userScope.canViewAll ? officers : officers.filter((officer) => userScope.allowedOfficerIds.includes(officer.id))),
-    [officers, userScope],
-  );
+  const scopedOfficers = useMemo(() => {
+    if (userScope.canViewAll) return officers;
+    const allowedTeamNames = teams
+      .filter((t) => userScope.allowedTeamIds.includes(t.id))
+      .map((t) => t.name.toLowerCase().trim());
+    return officers.filter(
+      (officer) =>
+        userScope.allowedOfficerIds.includes(officer.id) ||
+        (officer.department && allowedTeamNames.includes(officer.department.toLowerCase().trim())),
+    );
+  }, [officers, userScope, teams]);
   const scopedSchedules = useMemo(
     () =>
       userScope.canViewAll
@@ -653,8 +660,11 @@ export default function App() {
 
             {activeTab === 'officers' && (
               <OfficerManagement 
-                officers={officers} 
+                officers={scopedOfficers} 
                 setOfficers={setOfficers} 
+                teams={teams}
+                setTeams={setTeams}
+                currentUser={currentUser}
                 settings={settings}
                 addLog={addLog} 
               />

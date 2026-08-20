@@ -825,7 +825,6 @@ export default function ApprovalAndReports({
   .table-data td, .table-data th {
     border: 0.5pt solid windowtext !important;
   }
-</style>
 `
         : `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
