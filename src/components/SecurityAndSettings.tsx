@@ -120,18 +120,48 @@ export default function SecurityAndSettings({
   const [vehicles, setVehicles] = useState<string[]>(initialTargetConfig.vehicles || initialSettings.vehicles || []);
   const [equipmentList, setEquipmentList] = useState<string[]>(initialTargetConfig.equipmentList || initialSettings.equipmentList || []);
   const [routesList, setRoutesList] = useState<string[]>(initialTargetConfig.routesList || initialSettings.routesList || []);
+  
+  // Structured vehicle builder state
+  const [vehicleCategory, setVehicleCategory] = useState<'oto_con' | 'oto_tai' | 'mo_to' | 'chuyen_dung' | 'di_bo' | 'khac'>('oto_con');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [newVehicleInput, setNewVehicleInput] = useState('');
+
+  // Structured equipment builder state
+  const [equipmentCategory, setEquipmentCategory] = useState<'may_con' | 'sung_toc_do' | 'can_tai_trong' | 'camera_nguc' | 'bo_dam' | 'test_ma_tuy' | 'cong_so_8' | 'gay_chi_huy' | 'khac'>('may_con');
+  const [equipmentSerial, setEquipmentSerial] = useState('');
   const [newEquipmentInput, setNewEquipmentInput] = useState('');
+
   const [newRouteInput, setNewRouteInput] = useState('');
 
   const handleAddVehicle = (val?: string) => {
-    const text = (val || newVehicleInput).trim();
-    if (!text) return;
+    let text = (val || '').trim();
+    if (!text) {
+      const plate = vehiclePlate.trim().toUpperCase();
+      if (vehicleCategory === 'oto_con') {
+        text = plate ? `Xe Ô tô con TTKS (BKS ${plate})` : (newVehicleInput.trim() || 'Xe Ô tô con TTKS');
+      } else if (vehicleCategory === 'oto_tai') {
+        text = plate ? `Xe Bán tải chuyên dùng CSGT (BKS ${plate})` : (newVehicleInput.trim() || 'Xe Bán tải chuyên dùng CSGT');
+      } else if (vehicleCategory === 'mo_to') {
+        text = plate ? `Mô tô đặc chủng CSGT (BKS ${plate})` : (newVehicleInput.trim() || 'Mô tô đặc chủng CSGT');
+      } else if (vehicleCategory === 'chuyen_dung') {
+        text = plate ? `Xe Chuyên dụng / Cứu hộ (BKS ${plate})` : (newVehicleInput.trim() || 'Xe Chuyên dụng TTKS');
+      } else if (vehicleCategory === 'di_bo') {
+        text = 'Đi bộ / Tuần tra cơ động';
+      } else {
+        text = newVehicleInput.trim();
+      }
+    }
+
+    if (!text) {
+      alert('Vui lòng nhập biển số hoặc tên phương tiện!');
+      return;
+    }
     if (vehicles.includes(text)) {
       alert('Phương tiện này đã có trong danh mục!');
       return;
     }
     setVehicles([...vehicles, text]);
+    setVehiclePlate('');
     setNewVehicleInput('');
   };
 
@@ -140,13 +170,35 @@ export default function SecurityAndSettings({
   };
 
   const handleAddEquipment = (val?: string) => {
-    const text = (val || newEquipmentInput).trim();
+    let text = (val || '').trim();
+    if (!text) {
+      let baseName = '';
+      if (equipmentCategory === 'may_con') baseName = 'Máy đo nồng độ cồn';
+      else if (equipmentCategory === 'sung_toc_do') baseName = 'Súng bắn tốc độ có ghi hình';
+      else if (equipmentCategory === 'can_tai_trong') baseName = 'Cân tải trọng xách tay';
+      else if (equipmentCategory === 'camera_nguc') baseName = 'Camera giám sát đeo ngực';
+      else if (equipmentCategory === 'bo_dam') baseName = 'Bộ đàm cầm tay chuyên dụng';
+      else if (equipmentCategory === 'test_ma_tuy') baseName = 'Thiết bị kiểm tra chất ma túy';
+      else if (equipmentCategory === 'cong_so_8') baseName = 'Khóa còng số 8 & CCHT';
+      else if (equipmentCategory === 'gay_chi_huy') baseName = 'Gậy chỉ huy & Đèn tín hiệu ban đêm';
+      else baseName = newEquipmentInput.trim();
+
+      if (!baseName) {
+        alert('Vui lòng chọn loại thiết bị hoặc nhập tên thiết bị!');
+        return;
+      }
+
+      const serial = equipmentSerial.trim();
+      text = serial ? `${baseName} (Seri: ${serial})` : baseName;
+    }
+
     if (!text) return;
     if (equipmentList.includes(text)) {
       alert('Trang thiết bị này đã có trong danh mục!');
       return;
     }
     setEquipmentList([...equipmentList, text]);
+    setEquipmentSerial('');
     setNewEquipmentInput('');
   };
 
@@ -1161,47 +1213,97 @@ export default function SecurityAndSettings({
               </div>
 
               {/* SECTION 1: VEHICLES */}
-              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-3">
+              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-indigo-600" />
                     <h4 className="text-xs font-bold text-slate-800 uppercase">1. Danh mục Phương tiện TTKS ({vehicles.length})</h4>
                   </div>
+                  <span className="text-[11px] text-slate-500 font-medium">Hỗ trợ Ô tô con, Xe tải/bán tải, Mô tô đặc chủng theo Biển số</span>
                 </div>
 
-                {/* Quick Add Presets */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10.5px] font-bold text-slate-400">Gợi ý nhanh:</span>
-                  {['Xe Ô tô TTKS (BKS 78A-001.23)', 'Xe Ô tô TTKS (BKS 78A-002.56)', 'Mô tô Đặc chủng (BKS 78A1-0012)', 'Mô tô Đặc chủng (BKS 78A1-0034)', 'Xe Bán tải Chuyên dùng (BKS 78A-004.89)'].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleAddVehicle(preset)}
-                      className="text-[10.5px] px-2 py-0.5 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md transition-colors font-medium cursor-pointer"
-                    >
-                      + {preset}
-                    </button>
-                  ))}
-                </div>
+                {/* Structured Vehicle Builder */}
+                <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-3">
+                  <div className="text-[11px] font-bold text-indigo-900 uppercase tracking-wide flex items-center gap-1.5">
+                    <span>➕ Thêm Phương Tiện Mới:</span>
+                  </div>
 
-                {/* Add Input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newVehicleInput}
-                    onChange={(e) => setNewVehicleInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddVehicle(); } }}
-                    placeholder="Nhập tên phương tiện & BKS (VD: Xe Ô tô TTKS BKS 78A-005.67)..."
-                    className="flex-1 px-3 py-2 bg-white border border-slate-250 focus:border-blue-500 rounded-xl text-xs outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddVehicle()}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Thêm</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-5">
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Loại phương tiện *</label>
+                      <select
+                        value={vehicleCategory}
+                        onChange={(e) => setVehicleCategory(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-hidden"
+                      >
+                        <option value="oto_con">🚗 Xe Ô tô con TTKS (4 - 7 chỗ)</option>
+                        <option value="oto_tai">🛻 Xe Bán tải chuyên dùng CSGT</option>
+                        <option value="mo_to">🏍️ Mô tô đặc chủng CSGT</option>
+                        <option value="chuyen_dung">🚛 Xe Chuyên dụng / Cứu hộ TTKS</option>
+                        <option value="di_bo">🚶 Đi bộ / Tuần tra cơ động</option>
+                        <option value="khac">✏️ Nhập tên tùy chỉnh khác</option>
+                      </select>
+                    </div>
+
+                    {vehicleCategory !== 'di_bo' && vehicleCategory !== 'khac' ? (
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Biển kiểm soát (BKS) *</label>
+                        <input
+                          type="text"
+                          value={vehiclePlate}
+                          onChange={(e) => setVehiclePlate(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddVehicle(); } }}
+                          placeholder="VD: 78A-001.23, 78A1-0012..."
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-indigo-500 rounded-xl text-xs font-mono font-bold uppercase outline-hidden"
+                        />
+                      </div>
+                    ) : (
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Tên phương tiện / Hình thức</label>
+                        <input
+                          type="text"
+                          value={newVehicleInput}
+                          onChange={(e) => setNewVehicleInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddVehicle(); } }}
+                          placeholder={vehicleCategory === 'di_bo' ? 'Đi bộ / Tuần tra cơ động' : 'Nhập tên phương tiện tùy chỉnh...'}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-indigo-500 rounded-xl text-xs outline-hidden"
+                        />
+                      </div>
+                    )}
+
+                    <div className="sm:col-span-3 flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => handleAddVehicle()}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Thêm xe</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Add Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400">Mẫu nhanh:</span>
+                    {[
+                      'Xe Ô tô con TTKS (BKS 78A-001.23)',
+                      'Xe Ô tô con TTKS (BKS 78A-002.56)',
+                      'Xe Bán tải chuyên dùng CSGT (BKS 78A-003.88)',
+                      'Mô tô đặc chủng CSGT (BKS 78A1-0012)',
+                      'Mô tô đặc chủng CSGT (BKS 78A1-0034)',
+                      'Đi bộ / Tuần tra cơ động'
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => handleAddVehicle(preset)}
+                        className="text-[10px] px-2 py-0.5 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 rounded-md transition-colors font-medium cursor-pointer"
+                      >
+                        + {preset}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Vehicle Badges List */}
@@ -1209,77 +1311,132 @@ export default function SecurityAndSettings({
                   {vehicles.length === 0 ? (
                     <p className="text-xs text-slate-400 italic col-span-2">Chưa có phương tiện nào được cấu hình.</p>
                   ) : (
-                    vehicles.map((v, idx) => (
-                      <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
-                          <span className="truncate">{v}</span>
+                    vehicles.map((v, idx) => {
+                      const isOto = v.includes('Ô tô') || v.includes('Bán tải');
+                      const isMoto = v.includes('Mô tô');
+                      return (
+                        <div key={idx} className="flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className={`px-1.5 py-0.5 text-[10px] font-black rounded ${isOto ? 'bg-blue-50 text-blue-700 border border-blue-200' : isMoto ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700'}`}>
+                              {isOto ? '🚗 Ô TÔ' : isMoto ? '🏍️ MÔ TÔ' : '🚶 CƠ ĐỘNG'}
+                            </span>
+                            <span className="truncate font-bold text-slate-800">{v}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVehicle(idx)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Xóa phương tiện này"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVehicle(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Xóa phương tiện này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
 
               {/* SECTION 2: EQUIPMENT */}
-              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-3">
+              <div className="p-4 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-amber-600" />
                     <h4 className="text-xs font-bold text-slate-800 uppercase">2. Danh mục Trang thiết bị Kỹ thuật Nghiệp vụ & CCHT ({equipmentList.length})</h4>
                   </div>
+                  <span className="text-[11px] text-slate-500 font-medium">Hỗ trợ Máy đo cồn, Súng bắn tốc độ, Cân tải trọng... kèm Số Seri</span>
                 </div>
 
-                {/* Quick Add Presets */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10.5px] font-bold text-slate-400">Gợi ý nhanh:</span>
-                  {[
-                    'Máy đo nồng độ cồn', 
-                    'Súng bắn tốc độ có ghi hình', 
-                    'Cân tải trọng xách tay', 
-                    'Camera giám sát hành trình', 
-                    'Bộ đàm liên lạc chuyên dụng', 
-                    'Gậy chỉ huy & Đèn tín hiệu', 
-                    'Khóa còng số 8 & CCHT', 
-                    'Thiết bị kiểm tra ma túy'
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleAddEquipment(preset)}
-                      className="text-[10.5px] px-2 py-0.5 bg-white hover:bg-amber-50 text-slate-600 hover:text-amber-800 border border-slate-200 hover:border-amber-300 rounded-md transition-colors font-medium cursor-pointer"
-                    >
-                      + {preset}
-                    </button>
-                  ))}
-                </div>
+                {/* Structured Equipment Builder */}
+                <div className="p-3 bg-white rounded-xl border border-amber-100 shadow-2xs space-y-3">
+                  <div className="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+                    <span>➕ Thêm Trang Thiết Bị & Số Seri Mới:</span>
+                  </div>
 
-                {/* Add Input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newEquipmentInput}
-                    onChange={(e) => setNewEquipmentInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); } }}
-                    placeholder="Nhập tên thiết bị nghiệp vụ / CCHT mới (VD: Thiết bị đo độ truyền sáng kính xe)..."
-                    className="flex-1 px-3 py-2 bg-white border border-slate-250 focus:border-amber-500 rounded-xl text-xs outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddEquipment()}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Thêm</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-5">
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Loại trang thiết bị nghiệp vụ *</label>
+                      <select
+                        value={equipmentCategory}
+                        onChange={(e) => setEquipmentCategory(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-amber-500 rounded-xl text-xs font-bold text-slate-800 outline-hidden"
+                      >
+                        <option value="may_con">🍷 Máy đo nồng độ cồn</option>
+                        <option value="sung_toc_do">🎯 Súng bắn tốc độ có ghi hình</option>
+                        <option value="can_tai_trong">⚖️ Cân tải trọng xách tay / lưu động</option>
+                        <option value="camera_nguc">📹 Camera giám sát đeo ngực</option>
+                        <option value="bo_dam">📻 Bộ đàm cầm tay chuyên dụng</option>
+                        <option value="test_ma_tuy">🧪 Thiết bị kiểm tra chất ma túy</option>
+                        <option value="cong_so_8">🔒 Khóa còng số 8 & CCHT</option>
+                        <option value="gay_chi_huy">🔦 Gậy chỉ huy & Đèn tín hiệu</option>
+                        <option value="khac">✏️ Nhập tên thiết bị khác</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-4">
+                      {equipmentCategory !== 'khac' ? (
+                        <>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Số Seri / Mã thiết bị (Tùy chọn)</label>
+                          <input
+                            type="text"
+                            value={equipmentSerial}
+                            onChange={(e) => setEquipmentSerial(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); } }}
+                            placeholder="VD: FC20-8891, LTI-449, DGI-8801..."
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-amber-500 rounded-xl text-xs font-mono font-bold outline-hidden"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Tên thiết bị & Số Seri</label>
+                          <input
+                            type="text"
+                            value={newEquipmentInput}
+                            onChange={(e) => setNewEquipmentInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); } }}
+                            placeholder="Nhập tên thiết bị nghiệp vụ..."
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-amber-500 rounded-xl text-xs outline-hidden"
+                          />
+                        </>
+                      )}
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => handleAddEquipment()}
+                        className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Thêm thiết bị</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Add Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400">Mẫu nhanh có Seri:</span>
+                    {[
+                      'Máy đo nồng độ cồn (Seri: FC20-8891)',
+                      'Máy đo nồng độ cồn (Seri: ALCO-5510)',
+                      'Súng bắn tốc độ có ghi hình (Seri: LTI-20/20-449)',
+                      'Cân tải trọng xách tay (Seri: DGI-8801)',
+                      'Camera giám sát đeo ngực (Seri: CAM-012)',
+                      'Bộ đàm cầm tay chuyên dụng (Seri: MOT-8812)',
+                      'Thiết bị kiểm tra chất ma túy (Seri: DRUG-2026)',
+                      'Khóa còng số 8 & CCHT',
+                      'Gậy chỉ huy & Đèn tín hiệu ban đêm'
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => handleAddEquipment(preset)}
+                        className="text-[10px] px-2 py-0.5 bg-slate-50 hover:bg-amber-50 text-slate-600 hover:text-amber-800 border border-slate-200 hover:border-amber-300 rounded-md transition-colors font-medium cursor-pointer"
+                      >
+                        + {preset}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Equipment Badges List */}
@@ -1287,22 +1444,30 @@ export default function SecurityAndSettings({
                   {equipmentList.length === 0 ? (
                     <p className="text-xs text-slate-400 italic col-span-2">Chưa có trang thiết bị nào được cấu hình.</p>
                   ) : (
-                    equipmentList.map((eq, idx) => (
-                      <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                          <span className="truncate">{eq}</span>
+                    equipmentList.map((eq, idx) => {
+                      const hasSeri = eq.includes('(Seri:');
+                      return (
+                        <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                            <span className="truncate font-medium text-slate-800">{eq}</span>
+                            {hasSeri && (
+                              <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 text-[9.5px] font-bold rounded border border-emerald-200 shrink-0">
+                                Đã gán Seri
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEquipment(idx)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Xóa thiết bị này"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEquipment(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Xóa thiết bị này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

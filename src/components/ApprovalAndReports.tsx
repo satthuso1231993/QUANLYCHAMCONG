@@ -1450,7 +1450,7 @@ export default function ApprovalAndReports({
     } else if (effectiveReport === '3_danh_sach_tien_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
       const titleYear = parseInt(yearStr, 10);
-      const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === off.id).length, 0);
+      const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
       const totalAmount = activeRations.reduce((acc, curr) => acc + curr.amount, 0);
 
       htmlContent += `
@@ -1524,7 +1524,7 @@ export default function ApprovalAndReports({
       <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt;">
         <tr style="border: none;">
           <td colspan="8" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
-            (Số tiền bằng chữ: <b>${numberToWords(totalAmount)}</b>./.)
+            (Số tiền bằng chữ: <b>${numberToVietnameseWords(totalAmount)}</b>./.)
           </td>
         </tr>
       </table>
@@ -1625,7 +1625,7 @@ export default function ApprovalAndReports({
       <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; margin-bottom: 15px;">
         <tr style="border: none;">
           <td colspan="8" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
-            (Số tiền bằng chữ: <b>${numberToWords(totalAmount)}</b>./.)
+            (Số tiền bằng chữ: <b>${numberToVietnameseWords(totalAmount)}</b>./.)
           </td>
         </tr>
         <tr style="border: none;">
@@ -1895,7 +1895,7 @@ export default function ApprovalAndReports({
       <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt;">
         <tr style="border: none;">
           <td colspan="7" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
-            (Số tiền bằng chữ: <b>${numberToWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))}</b>./.)
+            (Số tiền bằng chữ: <b>${numberToVietnameseWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))}</b>./.)
           </td>
         </tr>
       </table>
