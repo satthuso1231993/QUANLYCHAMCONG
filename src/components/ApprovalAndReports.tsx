@@ -574,8 +574,9 @@ export default function ApprovalAndReports({
   const activeRations = React.useMemo(() => rations.filter(r => r.date.startsWith(selectedMonth)), [rations, selectedMonth]);
   const activeNightShifts = React.useMemo(() => nightShifts.filter(n => n.date.startsWith(selectedMonth)), [nightShifts, selectedMonth]);
 
-  const buildExportHtml = (docType: 'word' | 'excel', options?: { forPrint?: boolean }) => {
+  const buildExportHtml = (docType: 'word' | 'excel', options?: { forPrint?: boolean; targetReport?: ReportType }) => {
     const forPrint = Boolean(options?.forPrint);
+    const effectiveReport = options?.targetReport || activeReport;
     const yearStr = selectedMonth ? selectedMonth.split('-')[0] : '2026';
     const monthStr = selectedMonth ? selectedMonth.split('-')[1] : '06';
     const year = parseInt(yearStr, 10);
@@ -1196,7 +1197,7 @@ export default function ApprovalAndReports({
 </head>
 <body>${!forPrint ? '<div id="h0"></div><div id="h1"><p class="pagenum"><span style=\"mso-field-code:\\\" PAGE \\\"></span></p></div>' : ''}<div class="doc-shell"><div class="${forPrint ? 'doc-print ' : 'Section1 doc-word '}doc14 doc-page">`;
 
-    if (activeReport === '1_bang_cham_cong') {
+    if (effectiveReport === '1_bang_cham_cong') {
       const totalColumns = daysInMonth + 4;
       const headerCenterSpan = 1;
       const headerLeftSpan = Math.floor((totalColumns - headerCenterSpan) / 2);
@@ -1337,7 +1338,7 @@ export default function ApprovalAndReports({
         </tr>
       </table>
       `;
-    } else if (activeReport === '2_bang_dinh_luong') {
+    } else if (effectiveReport === '2_bang_dinh_luong') {
       const parentColSpan = 4 + daysInMonth + 1; // STT, Họ và tên, Chức vụ, Mức hưởng + daysInMonth + Tổng
       const titleMonth = parseInt(monthStr, 10);
       const titleYear = parseInt(yearStr, 10);
@@ -1360,28 +1361,28 @@ export default function ApprovalAndReports({
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="${parentColSpan}" ${cellKeyAttr('b2_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 12pt; font-weight: bold; color: #b91c1c; ${cellStyleCss('b2_subtitle')}">
-            ${cellTextHtml('b2_subtitle', `${escapeHtml((template.teamName || defaultTemplate.teamName || '')).toUpperCase()} - tháng ${titleMonth} năm ${titleYear}`)}
+          <td colspan="${parentColSpan}" ${cellKeyAttr('b2_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 12pt; font-weight: bold; padding-bottom: 8px; ${cellStyleCss('b2_subtitle')}">
+            ${cellTextHtml('b2_subtitle', `Tháng ${monthStr} năm ${yearStr}`)}
           </td>
         </tr>
         <tr style="border: none;"><td colspan="${parentColSpan}" style="border: none; height: 15px;"></td></tr>`,
       })}
 
-      <!-- Data Table -->
-      <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; table-layout: fixed;">
+      <!-- Main Daily Grid Table -->
+      <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; font-family: 'Times New Roman'; table-layout: fixed;">
         <thead>
-          <tr style="background-color: #fffbce; font-weight: bold;">
-            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 40px; text-align: center; vertical-align: middle; font-weight: bold;">STT</th>
-            <th rowspan="2" class="namecol" style="border: 0.5pt solid #52525b; text-align: left; vertical-align: middle; font-weight: bold; width: 180px; padding-left: 6px;">Họ và tên</th>
-            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 90px; text-align: center; vertical-align: middle; font-weight: bold;">Chức vụ</th>
-            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 90px; text-align: center; vertical-align: middle; font-weight: bold;">Mức hưởng</th>
-            <th colspan="${daysInMonth}" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; background-color: #fffbce;">Ngày trong tháng</th>
-            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 50px; text-align: center; vertical-align: middle; font-weight: bold;">Tổng</th>
+          <tr style="background-color: #f4f4f5; font-weight: bold; height: 28px;">
+            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 40px; text-align: center; vertical-align: middle;">STT</th>
+            <th rowspan="2" class="namecol" style="border: 0.5pt solid #52525b; text-align: left; vertical-align: middle; width: 190px; padding-left: 6px;">Họ và tên</th>
+            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 85px; text-align: center; vertical-align: middle;">Chức vụ</th>
+            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 85px; text-align: center; vertical-align: middle;">Mức hưởng</th>
+            <th colspan="${daysInMonth}" style="border: 0.5pt solid #52525b; text-align: center; vertical-align: middle; padding: 4px; background-color: #fef08a;">Ngày trong tháng</th>
+            <th rowspan="2" style="border: 0.5pt solid #52525b; width: 65px; text-align: center; vertical-align: middle; background-color: #bbf7d0;">Tổng cộng<br/>(ngày)</th>
           </tr>
-          <tr style="background-color: #fffbce;">
+          <tr style="background-color: #f4f4f5; font-weight: bold; height: 24px;">
             ${daysArray.map(day => {
-              const greyBg = isSunday(day) ? 'background-color: #cbd5e1;' : '';
-              return `<th ${cellKeyAttr(`b2_day_${day}`)} style="border: 0.5pt solid #52525b; width: 25px; text-align: center; font-weight: bold; ${greyBg} ${cellStyleCss(`b2_day_${day}`)}" class="daycol">${day}</th>`;
+              const cellBg = isSunday(day) ? 'background-color: #cbd5e1;' : '';
+              return `<th ${cellKeyAttr(`b2_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; vertical-align: middle; ${cellBg} ${cellStyleCss(`b2_day_${day}`)}">${day}</th>`;
             }).join('')}
           </tr>
         </thead>
@@ -1428,31 +1429,28 @@ export default function ApprovalAndReports({
       ${renderSignatureBlock([
         {
           titleKey: 'b2_sig_preparer_title',
-          titleHtml: escapeHtml(signerPreparerTitle),
+          titleHtml: noWrapHtml(signerPreparerTitle),
           nameKey: 'b2_sig_preparer_name',
           nameHtml: noWrapHtml(sPreparer),
-          nameFontPt: 14,
         },
         {
           titleKey: 'b2_sig_commander_title',
-          titleHtml: escapeHtml(signerCommanderTitle),
+          titleHtml: `${noWrapHtml(signerCommanderTitle)}<br/><span class="sig-note">${escapeHtml(signerCommanderSubTitle)}</span>`,
           nameKey: 'b2_sig_commander_name',
           nameHtml: noWrapHtml(sCommander),
-          nameFontPt: 14,
         },
         {
           titleKey: 'b2_sig_leader_title',
-          titleHtml: `${escapeHtml(signerLeaderTitle)}<br/><span class="sig-note">${escapeHtml(signerLeaderSubTitle)}</span>`,
+          titleHtml: `${noWrapHtml(signerLeaderTitle)}<br/><span class="sig-note">${escapeHtml(signerLeaderSubTitle)}</span>`,
           nameKey: 'b2_sig_leader_name',
           nameHtml: noWrapHtml(sLeader),
-          nameFontPt: 14,
         },
       ], { marginTopPx: 20, spacePx: sigSpace60, totalCols: parentColSpan })}
       `;
-    } else if (activeReport === '3_danh_sach_tien_dinh_luong') {
+    } else if (effectiveReport === '3_danh_sach_tien_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
       const titleYear = parseInt(yearStr, 10);
-      const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === curr.id).length, 0);
+      const totalDays = orderedOfficers.reduce((acc, curr) => acc + activeRations.filter(r => r.officerId === off.id).length, 0);
       const totalAmount = activeRations.reduce((acc, curr) => acc + curr.amount, 0);
 
       htmlContent += `
@@ -1503,34 +1501,30 @@ export default function ApprovalAndReports({
             const amount = countDays * settings.rationRate;
             return `<tr style="height: 35px;">
               <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; padding-left: 6px; mso-number-format:'\\@';">${off.fullName}</td>
               <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@';">Mức III</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${settings.rationRate.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0';">${countDays}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${amount.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b;"></td>
-              <td style="border: 0.5pt solid #52525b;"></td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; mso-number-format:'#,##0';">${settings.rationRate.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${countDays}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'#,##0';">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'#,##0';">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center;"></td>
             </tr>`;
           }).join('')}
           <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
-            <td colspan="4" style="border: 0.5pt solid #52525b; text-align: center;">Tổng cộng</td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0';">${totalDays}</td>
-            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; font-family: monospace; mso-number-format:'\\#\\,\\#\\#0';">${totalAmount.toLocaleString('vi-VN')}</td>
-            <td style="border: 0.5pt solid #52525b; background-color: #cbd5e1;"></td>
+            <td colspan="4" style="border: 0.5pt solid #52525b; text-align: center;">TỔNG CỘNG</td>
+            <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${totalDays}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; mso-number-format:'#,##0';">${totalAmount.toLocaleString('vi-VN')}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; mso-number-format:'#,##0';">${totalAmount.toLocaleString('vi-VN')}</td>
             <td style="border: 0.5pt solid #52525b;"></td>
           </tr>
         </tbody>
       </table>
 
-      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 12px;">
+      <!-- Text Amount in Vietnamese -->
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt;">
         <tr style="border: none;">
-          <td colspan="8" style="border: none; text-align: center; font-style: italic; color: #b91c1c; font-size: ${bodyFontPt}pt; padding: 4px 0;">
-            (Bằng chữ: ${numberToVietnameseWords(totalAmount)})
-          </td>
-        </tr>
-        <tr style="border: none;">
-          <td colspan="8" ${cellKeyAttr('b3_payment_request')} style="border: none; text-align: center; font-style: italic; font-size: ${bodyFontPt}pt; padding-top: 6px; ${cellStyleCss('b3_payment_request')}">
-            ${cellTextHtml('b3_payment_request', renderTemplateHtml(template.rationPaymentRequest || defaultTemplate.rationPaymentRequest || '', { place: template.placeName || defaultTemplate.placeName || '', month: titleMonth, year: titleYear, mm: pad2(titleMonth), team: template.teamName || defaultTemplate.teamName || '', issuer: template.issuerUnitName || defaultTemplate.issuerUnitName || '', recipient: template.recipientUnitName || defaultTemplate.recipientUnitName || '' }))}
+          <td colspan="8" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
+            (Số tiền bằng chữ: <b>${numberToWords(totalAmount)}</b>./.)
           </td>
         </tr>
       </table>
@@ -1556,7 +1550,7 @@ export default function ApprovalAndReports({
         },
       ], { marginTopPx: 25, spacePx: sigSpace60, totalCols: 8 })}
       `;
-    } else if (activeReport === '4_de_xuat_dinh_luong') {
+    } else if (effectiveReport === '4_de_xuat_dinh_luong') {
       const titleMonth = parseInt(monthStr, 10);
       const titleYear = parseInt(yearStr, 10);
       const totalDays = activeRations.length;
@@ -1572,69 +1566,81 @@ export default function ApprovalAndReports({
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="8" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="8" ${cellKeyAttr('b4_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; padding: 4px 0; ${cellStyleCss('b4_title')}">
-            ${cellTextHtml('b4_title', 'GIẤY ĐỀ XUẤT')}
+          <td colspan="8" ${cellKeyAttr('b4_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; padding: 4px 0; ${cellStyleCss('b4_title')}">
+            ${cellTextHtml('b4_title', 'GIẤY ĐỀ NGHỊ THANH TOÁN')}
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="8" ${cellKeyAttr('b4_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c; padding-bottom: 8px; ${cellStyleCss('b4_subtitle')}">
-            ${cellTextHtml('b4_subtitle', `Về việc thanh toán tiền ăn định lượng của CBCS <span style="text-decoration: underline;">tháng ${String(titleMonth).padStart(2, '0')}/${titleYear}</span>`)}
+          <td colspan="8" ${cellKeyAttr('b4_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 13pt; font-weight: bold; padding-bottom: 8px; ${cellStyleCss('b4_subtitle')}">
+            ${cellTextHtml('b4_subtitle', `(Tiền ăn định lượng tháng ${String(titleMonth).padStart(2, '0')} năm ${titleYear})`)}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="8" style="border: none; height: 10px;"></td></tr>`,
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 10px;"></td></tr>
+        <tr style="border: none;">
+          <td colspan="8" ${cellKeyAttr('b4_recipient')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; font-weight: bold; ${cellStyleCss('b4_recipient')}">
+            ${cellTextHtml('b4_recipient', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
+          </td>
+        </tr>
+        <tr style="border: none;"><td colspan="8" style="border: none; height: 15px;"></td></tr>`,
       })}
 
-      <table style="width: 100%; border: none; border-collapse: collapse; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman';">
+      <!-- Text content lines -->
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; margin-bottom: 15px;">
         <tr style="border: none;">
-          <td colspan="8" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; padding: 4px 0; font-weight: bold; ${cellStyleCss('recipient_line')}">
-            ${cellTextHtml('recipient_line', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
-          </td>
-        </tr>
-        <tr style="border: none;"><td colspan="8" style="border: none; height: 5px;"></td></tr>
-        <tr style="border: none;">
-          <td colspan="8" style="border: none; text-align: justify; padding: 5px 0; line-height: 1.5; text-indent: 30px;">
+          <td colspan="8" style="border: none; text-align: justify; padding: 4px 0; line-height: 1.5; text-indent: 30px;">
             <span ${cellKeyAttr('b4_basis')} style="${cellStyleCss('b4_basis')}">${cellTextHtml('b4_basis', renderTemplateHtml(template.rationBasis || defaultTemplate.rationBasis || '', templateVars))}</span>
           </td>
         </tr>
       </table>
 
-      <!-- Formula visual box row like the photo -->
-      <table style="width: 100%; border: none; border-collapse: collapse; margin: 15px auto; font-family: 'Times New Roman';">
-        <tr style="border: none;">
-          <td colspan="8" style="border: none; text-align: center; font-size: 12pt; font-weight: bold;">
-            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px;">${totalDays}</span> ngày &nbsp; x &nbsp; 
-            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px;">${settings.rationRate.toLocaleString('vi-VN')} đ/ngày</span> &nbsp; = &nbsp; 
-            <span style="border-bottom: 0.5pt solid black; padding: 2px 10px; color: #b91c1c;">${totalAmount.toLocaleString('vi-VN')} đ</span>
-          </td>
-        </tr>
+      <!-- Mini summary table -->
+      <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; font-family: 'Times New Roman'; table-layout: fixed; margin-bottom: 15px;">
+        <thead>
+          <tr style="background-color: #f4f4f5; font-weight: bold; height: 30px;">
+            <th style="border: 0.5pt solid #52525b; width: 50px; text-align: center; font-weight: bold;">STT</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Nội dung</th>
+            <th style="border: 0.5pt solid #52525b; width: 100px; text-align: center; font-weight: bold;">Mức hưởng</th>
+            <th style="border: 0.5pt solid #52525b; width: 100px; text-align: center; font-weight: bold;">Số ngày</th>
+            <th style="border: 0.5pt solid #52525b; width: 120px; text-align: center; font-weight: bold;">Mức tiền</th>
+            <th style="border: 0.5pt solid #52525b; width: 150px; text-align: center; font-weight: bold;">Thành tiền (đ)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="height: 35px;">
+            <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">1</td>
+            <td style="border: 0.5pt solid #52525b; text-align: left; padding-left: 8px; mso-number-format:'\\@';">Tiền ăn định lượng CBCS</td>
+            <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'\\@';">Mức III</td>
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${totalDays}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 8px; mso-number-format:'#,##0';">${settings.rationRate.toLocaleString('vi-VN')}</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 8px; mso-number-format:'#,##0';">${totalAmount.toLocaleString('vi-VN')}</td>
+          </tr>
+          <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
+            <td colspan="5" style="border: 0.5pt solid #52525b; text-align: center;">TỔNG CỘNG</td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 8px; color: #991b1b; mso-number-format:'#,##0';">${totalAmount.toLocaleString('vi-VN')}</td>
+          </tr>
+        </tbody>
       </table>
 
-      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 5px;">
+      <!-- Text Amount in Vietnamese -->
+      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt; margin-bottom: 15px;">
         <tr style="border: none;">
-          <td colspan="8" style="border: none; text-align: center; font-size: ${bodyFontPt}pt; font-weight: normal; color: #b91c1c;">
-            Bằng chữ: <span style="font-style: italic;">${numberToVietnameseWords(totalAmount)}</span>
+          <td colspan="8" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
+            (Số tiền bằng chữ: <b>${numberToWords(totalAmount)}</b>./.)
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="8" ${cellKeyAttr('b4_attachment_note')} style="border: none; margin-top: 5px; font-size: ${bodyFontPt}pt; text-align: center; font-style: italic; padding-top: 4px; ${cellStyleCss('b4_attachment_note')}">
-            ${cellTextHtml('b4_attachment_note', renderTemplateHtml(template.rationAttachmentNote || defaultTemplate.rationAttachmentNote || '', templateVars))}
+          <td colspan="8" style="border: none; text-align: justify; padding: 4px 0; line-height: 1.5; text-indent: 30px;">
+            <span ${cellKeyAttr('b4_confirm')} style="${cellStyleCss('b4_confirm')}">${cellTextHtml('b4_confirm', renderTemplateHtml(template.rationConfirmation || defaultTemplate.rationConfirmation || '', templateVars))}</span>
           </td>
         </tr>
-      </table>
-
-      <!-- Confirmation statement in a box -->
-      <table style="width: 100%; border: 0.5pt solid #52525b; border-collapse: collapse; margin: 15px 0; background-color: #ffffff;">
-        <tr style="border: 0.5pt solid #52525b;">
-          <td colspan="8" style="border: 0.5pt solid #52525b; padding: 12px; font-size: ${bodyFontPt}pt; text-align: justify; line-height: 1.5; font-family: 'Times New Roman'; font-style: italic;">
-            <span ${cellKeyAttr('b4_confirmation')} style="${cellStyleCss('b4_confirmation')}">${cellTextHtml('b4_confirmation', renderTemplateHtml(template.rationConfirmation || defaultTemplate.rationConfirmation || '', templateVars))}</span>
-          </td>
-        </tr>
-      </table>
-
-      <table style="width: 100%; border: none; border-collapse: collapse; font-size: ${bodyFontPt}pt; font-family: 'Times New Roman'; margin-bottom: 20px;">
         <tr style="border: none;">
-          <td colspan="8" style="border: none; text-align: justify; padding: 5px 0; line-height: 1.5; text-indent: 30px;">
-            <span ${cellKeyAttr('b4_approval_request')} style="${cellStyleCss('b4_approval_request')}">${cellTextHtml('b4_approval_request', renderTemplateHtml(template.rationApprovalRequest || defaultTemplate.rationApprovalRequest || '', templateVars))}</span>
+          <td colspan="8" style="border: none; text-align: justify; padding: 4px 0; line-height: 1.5; text-indent: 30px;">
+            <span ${cellKeyAttr('b4_commitment')} style="${cellStyleCss('b4_commitment')}">${cellTextHtml('b4_commitment', renderTemplateHtml(template.rationCommitment || defaultTemplate.rationCommitment || '', templateVars))}</span>
+          </td>
+        </tr>
+        <tr style="border: none;">
+          <td colspan="8" style="border: none; text-align: justify; padding: 4px 0; line-height: 1.5; text-indent: 30px;">
+            <span ${cellKeyAttr('b4_payment_req')} style="${cellStyleCss('b4_payment_req')}">${cellTextHtml('b4_payment_req', renderTemplateHtml(template.rationPaymentRequest || defaultTemplate.rationPaymentRequest || '', templateVars))}</span>
           </td>
         </tr>
       </table>
@@ -1654,7 +1660,7 @@ export default function ApprovalAndReports({
         },
       ], { marginTopPx: 10, spacePx: sigSpace75, totalCols: 8 })}
       `;
-    } else if (activeReport === '5_bang_lam_dem') {
+    } else if (effectiveReport === '5_bang_lam_dem') {
       const totalHeaderCols = daysInMonth + 5;
       const headerCenterSpan = 2;
       const headerLeftSpan = Math.floor((totalHeaderCols - headerCenterSpan) / 2);
@@ -1697,71 +1703,70 @@ export default function ApprovalAndReports({
               const dayOfWeek = dObj.getDay();
               const isW = dayOfWeek === 0 || dayOfWeek === 6;
               const bg = isW ? 'background-color: #e4e4e7;' : '';
-              return `<th ${cellKeyAttr(`b5_day_${day}`)} style="border: 0.5pt solid #52525b; width: 25px; text-align: center; font-weight: bold; ${bg} ${cellStyleCss(`b5_day_${day}`)}" class="daycol">${day}</th>`;
+              return `<th ${cellKeyAttr(`b5_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; vertical-align: middle; ${bg} ${cellStyleCss(`b5_day_${day}`)}">${day}</th>`;
             }).join('')}
-            <th style="border: 0.5pt solid #52525b; width: 55px; text-align: center; font-weight: bold; background-color: #bbf7d0;">Đủ 2h</th>
-            <th style="border: 0.5pt solid #52525b; width: 55px; text-align: center; font-weight: bold; background-color: #bbf7d0;">Đủ 4h</th>
-            <th style="border: 0.5pt solid #52525b; width: 70px; text-align: center; font-weight: bold; background-color: #bbf7d0;">Tổng thời</th>
+            <th style="border: 0.5pt solid #52525b; width: 55px; text-align: center; vertical-align: middle; background-color: #bbf7d0;">Từ 2h đến dưới 4h</th>
+            <th style="border: 0.5pt solid #52525b; width: 55px; text-align: center; vertical-align: middle; background-color: #bbf7d0;">Từ 4h trở lên</th>
+            <th style="border: 0.5pt solid #52525b; width: 65px; text-align: center; vertical-align: middle; background-color: #bbf7d0;">Tổng cộng</th>
           </tr>
         </thead>
         <tbody>
           ${orderedOfficers.map((off, index) => {
-            const officerShifts = activeNightShifts.filter(n => n.officerId === off.id);
-            let du2hCount = 0;
-            let du4hCount = 0;
-            let totalTime = 0;
+            const offShifts = activeNightShifts.filter(n => n.officerId === off.id);
+            let count2h = 0;
+            let count4h = 0;
 
-            daysArray.forEach(day => {
+            const dayTds = daysArray.map(day => {
               const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
-              const dailyShifts = officerShifts.filter(n => n.date === dayStr);
-              const dailyPoints = dailyShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
-              totalTime += dailyPoints;
-              if (dailyPoints >= 1.0) {
-                du4hCount++;
-              } else if (dailyPoints >= 0.5) {
-                du2hCount++;
-              }
-            });
+              const dailyShifts = offShifts.filter(n => n.date === dayStr);
+              const totalDailyPoints = dailyShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
 
-            return `<tr style="height: 35px;">
+              let mark = '';
+              if (totalDailyPoints >= 1.0) {
+                mark = '4h';
+                count4h++;
+              } else if (totalDailyPoints >= 0.5) {
+                mark = '2h';
+                count2h++;
+              }
+
+              const dObj = new Date(year, month - 1, day);
+              const dayOfWeek = dObj.getDay();
+              const isW = dayOfWeek === 0 || dayOfWeek === 6;
+              const bg = isW ? 'background-color: #e4e4e7;' : '';
+
+              return `<td ${cellKeyAttr(`b5_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'\\@'; ${bg} ${cellStyleCss(`b5_day_${day}`)}">${mark}</td>`;
+            }).join('');
+
+            const sumHours = offShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
+
+            return `<tr>
               <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
-              ${daysArray.map(day => {
-                const dObj = new Date(year, month - 1, day);
-                const dayOfWeek = dObj.getDay();
-                const isW = dayOfWeek === 0 || dayOfWeek === 6;
-                const bg = isW ? 'background-color: #f4f4f5;' : '';
-                
-                const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
-                const dailyShifts = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr);
-                const dailyPoints = dailyShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
-                
-                let cellText = '';
-                if (dailyPoints >= 1.0) {
-                  cellText = 'X';
-                } else if (dailyPoints >= 0.5) {
-                  cellText = '/';
-                }
-                return `<td ${cellKeyAttr(`b5_day_${day}`)} class="daycol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'\\@'; ${bg} ${cellStyleCss(`b5_day_${day}`)}">${cellText}</td>`;
-              }).join('')}
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${du2hCount || 0}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${du4hCount || 0}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0.0';">${totalTime > 0 ? totalTime.toFixed(1) : '-'}</td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; font-family: 'Times New Roman'; font-size: 12pt !important; padding-left: 6px; mso-number-format:'\\@';">${off.fullName}</td>
+              ${dayTds}
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${count2h > 0 ? count2h : ''}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">${count4h > 0 ? count4h : ''}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0.0';">${sumHours > 0 ? sumHours.toFixed(1) : '0'}</td>
             </tr>`;
           }).join('')}
-
-          <!-- Total Row -->
-          <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
-            <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-size: ${tableFontPt}pt;">Tổng cộng</td>
-            ${daysArray.map(() => `<td style="border: 0.5pt solid #52525b; background-color: #f4f4f5;"></td>`).join('')}
+          <tr style="background-color: #f4f4f5; font-weight: bold;">
+            <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center;">TỔNG CỘNG</td>
+            ${daysArray.map(day => {
+              const dObj = new Date(year, month - 1, day);
+              const dayOfWeek = dObj.getDay();
+              const isW = dayOfWeek === 0 || dayOfWeek === 6;
+              const bg = isW ? 'background-color: #e4e4e7;' : '';
+              return `<td style="border: 0.5pt solid #52525b; ${bg}"></td>`;
+            }).join('')}
             <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0';">
               ${(() => {
                 let total2h = 0;
                 orderedOfficers.forEach(off => {
                   daysArray.forEach(day => {
                     const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
-                    const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
-                    if (dailyPoints >= 0.5 && dailyPoints < 1.0) total2h++;
+                    const dailyShifts = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr);
+                    const totalPoints = dailyShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
+                    if (totalPoints >= 0.5 && totalPoints < 1.0) total2h++;
                   });
                 });
                 return total2h;
@@ -1773,8 +1778,9 @@ export default function ApprovalAndReports({
                 orderedOfficers.forEach(off => {
                   daysArray.forEach(day => {
                     const dayStr = `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`;
-                    const dailyPoints = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr).reduce((s, c) => s + c.hoursCount, 0);
-                    if (dailyPoints >= 1.0) total4h++;
+                    const dailyShifts = activeNightShifts.filter(n => n.officerId === off.id && n.date === dayStr);
+                    const totalPoints = dailyShifts.reduce((acc, curr) => acc + curr.hoursCount, 0);
+                    if (totalPoints >= 1.0) total4h++;
                   });
                 });
                 return total4h;
@@ -1817,7 +1823,7 @@ export default function ApprovalAndReports({
         },
       ], { marginTopPx: 20, spacePx: sigSpace75, totalCols: daysInMonth + 5 })}
       `;
-    } else if (activeReport === '6_danh_sach_tien_lam_dem') {
+    } else if (effectiveReport === '6_danh_sach_tien_lam_dem') {
       htmlContent += `
       ${renderAdminHeader({
         totalCols: 7,
@@ -1828,79 +1834,68 @@ export default function ApprovalAndReports({
         titleRowsHtml: `
         <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>
         <tr style="border: none;">
-          <td colspan="7" ${cellKeyAttr('b6_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; text-transform: uppercase; padding: 4px 0; ${cellStyleCss('b6_title')}">
-            ${cellTextHtml('b6_title', 'DANH SÁCH CÁN BỘ, CHIẾN SỸ HƯỞNG TIỀN BỒI DƯỠNG LÀM VIỆC BAN ĐÊM')}
+          <td colspan="7" ${cellKeyAttr('b6_title')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 14pt; font-weight: bold; padding: 4px 0; ${cellStyleCss('b6_title')}">
+            ${cellTextHtml('b6_title', `DANH SÁCH CÁN BỘ CHIẾN SỸ ĐƯỢC HƯỞNG TIỀN BỒI DƯỠNG LÀM ĐÊM <span style="color: #b91c1c;">THÁNG ${String(month).padStart(2, '0')}/${year}</span>`)}
           </td>
         </tr>
         <tr style="border: none;">
-          <td colspan="7" ${cellKeyAttr('b6_subtitle')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-size: 12pt; font-weight: bold; color: #b91c1c; padding-bottom: 8px; ${cellStyleCss('b6_subtitle')}">
-            ${cellTextHtml('b6_subtitle', `Tháng ${String(month).padStart(2, '0')} năm ${year}`)}
+          <td colspan="7" ${cellKeyAttr('b6_team')} style="border: none; text-align: center; font-family: 'Times New Roman'; font-weight: normal; padding-bottom: 8px; ${cellStyleCss('b6_team')}">
+            ${cellTextHtml('b6_team', escapeHtml(template.teamName || defaultTemplate.teamName || ''))}
           </td>
         </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>`,
+        <tr style="border: none;"><td colspan="7" style="border: none; height: 15px;"></td></tr>`,
       })}
 
-      <table style="width: 100%; border: none; border-collapse: collapse; font-family: 'Times New Roman';">
-        <tr style="border: none;">
-          <td colspan="7" class="narr14 line0 recipient" ${cellKeyAttr('recipient_line')} style="border: none; text-align: center; font-weight: bold; padding: 4px 0; ${cellStyleCss('recipient_line')}">
-            ${cellTextHtml('recipient_line', renderTemplateHtml(template.recipientLine || defaultTemplate.recipientLine || '', templateVars))}
-          </td>
-        </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 5px;"></td></tr>
-        <tr style="border: none;">
-          <td colspan="7" class="narr14" style="border: none; text-align: justify; text-indent: 30px; padding: 5px 0;">
-            <span ${cellKeyAttr('b6_basis')} style="${cellStyleCss('b6_basis')}">${cellTextHtml('b6_basis', renderTemplateHtml(template.nightBasis || defaultTemplate.nightBasis || '', templateVars))}</span>
-          </td>
-        </tr>
-        <tr style="border: none;"><td colspan="7" style="border: none; height: 10px;"></td></tr>
-      </table>
-
-      <!-- Table content -->
+      <!-- Main Column Table -->
       <table class="grid10 grid-tight" style="border: 0.5pt solid #52525b; width: 100%; border-collapse: collapse; font-family: 'Times New Roman'; table-layout: fixed;">
         <thead>
-          <tr style="background-color: #f4f4f5; font-weight: bold; height: 25px;">
-            <th style="border: 0.5pt solid #52525b; width: 45px; text-align: center;">STT</th>
-            <th class="namecol" style="border: 0.5pt solid #52525b; text-align: left; width: 190px; padding-left: 6px;">HỌ VÀ TÊN</th>
-            <th style="border: 0.5pt solid #52525b; text-align: right; width: 100px; padding-right: 6px;">định mức</th>
-            <th style="border: 0.5pt solid #52525b; text-align: center; width: 80px;">Số công</th>
-            <th style="border: 0.5pt solid #52525b; text-align: right; width: 150px; padding-right: 6px;">Số tiền đề nghị thanh</th>
-            <th style="border: 0.5pt solid #52525b; text-align: right; width: 150px;">Số tiền được duyệt</th>
-            <th style="border: 0.5pt solid #52525b; text-align: center; width: 220px;">Ký nhận (Ký tên và ghi rõ họ tên)</th>
+          <tr style="background-color: #f4f4f5; font-weight: bold;">
+            <th style="border: 0.5pt solid #52525b; width: 40px; text-align: center; font-weight: bold; padding: 6px;">STT</th>
+            <th class="namecol" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 190px; padding: 6px;">Họ và tên</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 85px; padding: 6px;">Số ca</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 95px; padding: 6px;">Mức tiền</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 115px; padding: 6px;">Tổng tiền</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 115px; padding: 6px;">Số tiền thực nhận (đ)</th>
+            <th style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; width: 150px; padding: 6px;">Ký nhận<br/>(Ký, ghi rõ họ tên)</th>
           </tr>
         </thead>
         <tbody>
           ${orderedOfficers.map((off, index) => {
             const countShifts = activeNightShifts.filter(n => n.officerId === off.id).reduce((acc, curr) => acc + curr.hoursCount, 0);
             const amount = countShifts * settings.nightShiftRate;
+
             return `<tr style="height: 35px;">
               <td style="border: 0.5pt solid #52525b; text-align: center; mso-number-format:'0';">${index + 1}</td>
-              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; color: #991b1b; padding-left: 6px; font-size: 12pt !important; mso-number-format:'\\@';">${off.fullName}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">${settings.nightShiftRate.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0.0';">${countShifts.toFixed(1)}</td>
-              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">${amount.toLocaleString('vi-VN')}</td>
-              <td style="border: 0.5pt solid #52525b;"></td>
-              <td style="border: 0.5pt solid #52525b;"></td>
+              <td class="td-name" style="border: 0.5pt solid #52525b; text-align: left; font-weight: bold; padding-left: 6px; mso-number-format:'\\@';">${off.fullName}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; font-family: monospace; mso-number-format:'0.0';">${countShifts.toFixed(1)}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; padding-right: 6px; mso-number-format:'#,##0';">${settings.nightShiftRate.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'#,##0';">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'#,##0';">${amount.toLocaleString('vi-VN')}</td>
+              <td style="border: 0.5pt solid #52525b; text-align: center;"></td>
             </tr>`;
           }).join('')}
           <tr style="background-color: #f4f4f5; font-weight: bold; height: 35px;">
-            <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Tổng cộng:</td>
-            <td style="border: 0.5pt solid #52525b;"></td>
-            <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold; mso-number-format:'0.0';">
+            <td colspan="2" style="border: 0.5pt solid #52525b; text-align: center;">TỔNG CỘNG</td>
+            <td style="border: 0.5pt solid #52525b; text-align: center; font-family: monospace; mso-number-format:'0.0';">
               ${activeNightShifts.reduce((acc, curr) => acc + curr.hoursCount, 0).toFixed(1)}
             </td>
-            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; mso-number-format:'\\#\\,\\#\\#0';">
+            <td style="border: 0.5pt solid #52525b;"></td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; color: #991b1b; mso-number-format:'#,##0';">
               ${activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString('vi-VN')}
             </td>
-            <td style="border: 0.5pt solid #52525b;"></td>
+            <td style="border: 0.5pt solid #52525b; text-align: right; font-weight: bold; padding-right: 6px; color: #991b1b; mso-number-format:'#,##0';">
+              ${activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString('vi-VN')}
+            </td>
             <td style="border: 0.5pt solid #52525b;"></td>
           </tr>
         </tbody>
       </table>
 
-      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 12px;">
+      <!-- Text Amount in Vietnamese -->
+      <table style="width: 100%; border: none; border-collapse: collapse; margin-top: 10px; font-family: 'Times New Roman'; font-size: ${bodyFontPt}pt;">
         <tr style="border: none;">
-          <td colspan="7" style="border: none; text-align: center; font-style: italic; color: #b91c1c; font-size: ${bodyFontPt}pt; padding: 4px 0;">
-            (Bằng chữ: ${numberToVietnameseWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))})
+          <td colspan="7" style="border: none; text-align: left; padding: 4px 0; line-height: 1.4;">
+            (Số tiền bằng chữ: <b>${numberToWords(activeNightShifts.reduce((acc, curr) => acc + curr.amount, 0))}</b>./.)
           </td>
         </tr>
       </table>
@@ -2029,7 +2024,28 @@ export default function ApprovalAndReports({
       `;
     }
 
+    const docHash = `CSGT-QD30-${selectedMonth}-${effectiveReport.toUpperCase()}`;
+    const qrVerificationHtml = `
+      <div style="margin-top: 25px; padding-top: 10px; border-top: 0.5pt dashed #71717a; font-family: 'Times New Roman', serif; font-size: 8pt; color: #52525b; page-break-inside: avoid;">
+        <table style="width: 100%; border: none; border-collapse: collapse; margin: 0;">
+          <tr style="border: none;">
+            <td style="border: none; text-align: left; vertical-align: middle; line-height: 1.3;">
+              <div style="font-weight: bold; color: #18181b;">HỆ THỐNG QUẢN LÝ NGHIỆP VỤ TTKS & ĐỊNH LƯỢNG CHUẨN SỐ HÓA</div>
+              <div>Mã số văn bản điện tử: <span style="font-family: monospace; font-weight: bold; color: #09090b;">${docHash}</span></div>
+              <div>Đơn vị: ${escapeHtml(template.issuerUnitName || defaultTemplate.issuerUnitName || '')} — ${escapeHtml(template.teamName || defaultTemplate.teamName || '')}</div>
+            </td>
+            <td style="border: none; text-align: right; vertical-align: middle; line-height: 1.3;">
+              <div style="font-weight: bold; color: #166534;">✓ CHUẨN NGHỊ ĐỊNH 30/2020/NĐ-CP</div>
+              <div>Xác thực số: <strong>ĐÃ KIỂM ĐỊNH A4</strong></div>
+              <div>Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+
     htmlContent += `
+${qrVerificationHtml}
 </div></div></body>
 </html>`;
 
@@ -2239,6 +2255,121 @@ export default function ApprovalAndReports({
     }
   };
 
+  const handleExportBatchPackage = async () => {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      for (const def of reportDefinitions) {
+        const { htmlContent } = buildExportHtml('excel', { targetReport: def.type as ReportType });
+        downloadHtmlAsFile(
+          htmlContent,
+          'application/vnd.ms-excel;charset=utf-8;',
+          `BIEU_MAU_${def.type.toUpperCase()}_THANG_${selectedMonth}.xls`
+        );
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      addLog('Xuất Trọn Bộ Hồ Sơ', `Đã xuất trọn bộ 07 Biểu mẫu báo cáo Tháng ${shortMonthYear} thành công.`);
+      alert(`Đã xuất trọn bộ 07 Biểu mẫu báo cáo Tháng ${shortMonthYear} thành công! Hãy kiểm tra thư mục Tải về (Downloads).`);
+    } catch (err) {
+      console.error(err);
+      setExportError('Xuất trọn bộ biểu mẫu thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const currentApproval = approvals.find(a => a.monthString === selectedMonth);
+  const currentStage: 'draft' | 'submitted' | 'team_approved' | 'locked' =
+    currentApproval?.stage || (currentApproval?.status === 'Đã khóa' ? 'locked' : 'draft');
+  const [rejectModalOpen, setRejectModalOpen] = React.useState(false);
+  const [rejectReasonInput, setRejectReasonInput] = React.useState('');
+
+  const updateWorkflowStage = (patch: Partial<Approval>) => {
+    setApprovals(prev => {
+      const idx = prev.findIndex(a => a.monthString === selectedMonth);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], ...patch };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          id: `APP_${Date.now()}`,
+          monthString: selectedMonth,
+          status: patch.status || 'Chưa khóa',
+          stage: patch.stage || 'draft',
+          approvedBy: patch.approvedBy || '',
+          approvedAt: patch.approvedAt || '',
+          submittedBy: patch.submittedBy || '',
+          submittedAt: patch.submittedAt || '',
+          teamApprovedBy: patch.teamApprovedBy || '',
+          teamApprovedAt: patch.teamApprovedAt || '',
+          rejectionReason: patch.rejectionReason || '',
+          ...patch,
+        },
+      ];
+    });
+  };
+
+  const handleWorkflowSubmit = () => {
+    updateWorkflowStage({
+      stage: 'submitted',
+      submittedBy: currentUser.fullName,
+      submittedAt: new Date().toISOString(),
+      rejectionReason: undefined,
+    });
+    addLog('Trình duyệt báo cáo', `Đã chuyển hồ sơ tháng ${shortMonthYear} lên Chỉ huy Đội duyệt.`);
+  };
+
+  const handleWorkflowTeamApprove = () => {
+    updateWorkflowStage({
+      stage: 'team_approved',
+      teamApprovedBy: currentUser.fullName,
+      teamApprovedAt: new Date().toISOString(),
+      rejectionReason: undefined,
+    });
+    addLog('Chỉ huy Đội duyệt', `Chỉ huy Đội đã duyệt hồ sơ tháng ${shortMonthYear}. Chờ Lãnh đạo Phòng phê duyệt.`);
+  };
+
+  const handleWorkflowRejectSubmit = () => {
+    if (!rejectReasonInput.trim()) {
+      alert('Vui lòng nhập lý do trả lại để cấp dưới nắm được nội dung cần chỉnh sửa!');
+      return;
+    }
+    updateWorkflowStage({
+      stage: 'draft',
+      rejectionReason: rejectReasonInput.trim(),
+    });
+    setRejectModalOpen(false);
+    setRejectReasonInput('');
+    addLog('Trả lại hồ sơ', `Đã trả lại hồ sơ tháng ${shortMonthYear}. Lý do: ${rejectReasonInput.trim()}`);
+  };
+
+  const handleWorkflowLock = () => {
+    updateWorkflowStage({
+      stage: 'locked',
+      status: 'Đã khóa',
+      approvedBy: currentUser.fullName,
+      approvedAt: new Date().toISOString(),
+    });
+    addLog('Khóa sổ hồ sơ', `Lãnh đạo đã phê duyệt và khóa sổ toàn bộ dữ liệu tháng ${shortMonthYear}.`);
+  };
+
+  const handleWorkflowUnlock = () => {
+    if (currentUser.role !== 'admin') {
+      alert('Chỉ Lãnh đạo Phòng (Admin) mới có quyền mở khóa sổ điện tử!');
+      return;
+    }
+    updateWorkflowStage({
+      stage: 'team_approved',
+      status: 'Chưa khóa',
+      approvedBy: '',
+      approvedAt: '',
+    });
+    addLog('Mở khóa sổ', `Đã mở khóa sổ hồ sơ tháng ${shortMonthYear}.`);
+  };
+
   const previewPaperWidthPx = getActiveOrientation() === 'landscape' ? 1123 : 794;
   const previewPaperHeightPx = getActiveOrientation() === 'landscape' ? 794 : 1123;
 
@@ -2327,14 +2458,183 @@ export default function ApprovalAndReports({
 
   return (
     <div className="space-y-6">
-      {/* Upper header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-100 shadow-xs">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Xuất Báo cáo</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Kết xuất các phụ biểu thanh toán tài chính theo quy định
-          </p>
+      {/* Upper header & Multi-level Approval Workflow */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">Hồ Sơ Thanh Quyết Toán & Xuất Báo Cáo</h2>
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                currentStage === 'locked'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250'
+                  : currentStage === 'team_approved'
+                  ? 'bg-blue-50 text-blue-700 border-blue-250'
+                  : currentStage === 'submitted'
+                  ? 'bg-amber-50 text-amber-700 border-amber-250'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}>
+                {currentStage === 'locked' ? '🔒 Đã khóa sổ' : currentStage === 'team_approved' ? '👮 Đội đã duyệt' : currentStage === 'submitted' ? '⏳ Chờ Đội duyệt' : '📝 Bản nháp'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Quy trình phê duyệt điện tử 3 cấp và chuẩn hóa biểu mẫu A4 Nghị định 30/2020/NĐ-CP
+            </p>
+          </div>
+
+          {/* Workflow Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {currentStage === 'draft' && (
+              <button
+                type="button"
+                onClick={handleWorkflowSubmit}
+                className="px-3.5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>📤</span>
+                <span>Trình Chỉ huy Đội duyệt</span>
+              </button>
+            )}
+
+            {currentStage === 'submitted' && (
+              <>
+                {(currentUser.role === 'admin' || currentUser.role === 'doi') && (
+                  <button
+                    type="button"
+                    onClick={handleWorkflowTeamApprove}
+                    className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>✅</span>
+                    <span>Chỉ huy Đội Phê duyệt</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRejectModalOpen(true)}
+                  className="px-3 py-2 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>↩️</span>
+                  <span>Trả lại yêu cầu sửa</span>
+                </button>
+              </>
+            )}
+
+            {currentStage === 'team_approved' && (
+              <>
+                {(currentUser.role === 'admin' || currentUser.role === 'doi') && (
+                  <button
+                    type="button"
+                    onClick={handleWorkflowLock}
+                    className="px-3.5 py-2 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🔒</span>
+                    <span>Lãnh đạo Phê duyệt & Khóa sổ</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRejectModalOpen(true)}
+                  className="px-3 py-2 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>↩️</span>
+                  <span>Yêu cầu Đội rà soát lại</span>
+                </button>
+              </>
+            )}
+
+            {currentStage === 'locked' && currentUser.role === 'admin' && (
+              <button
+                type="button"
+                onClick={handleWorkflowUnlock}
+                className="px-3 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>🔓</span>
+                <span>Mở Khóa Sổ Tháng</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* STEPPER BAR */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          {/* Step 1 */}
+          <div className={`p-3 rounded-xl border transition-all ${
+            currentStage === 'draft'
+              ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-100'
+              : 'bg-slate-50/70 border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                currentStage !== 'draft' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
+              }`}>
+                {currentStage !== 'draft' ? '✓' : '1'}
+              </span>
+              <span className="text-xs font-bold text-slate-800">1. Lập & Trình duyệt</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1 pl-7">
+              {currentApproval?.submittedBy ? `Trình bởi: ${currentApproval.submittedBy}` : 'Tổ địa bàn / Cán bộ lập biểu'}
+            </p>
+          </div>
+
+          {/* Step 2 */}
+          <div className={`p-3 rounded-xl border transition-all ${
+            currentStage === 'submitted'
+              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100'
+              : currentStage === 'team_approved' || currentStage === 'locked'
+              ? 'bg-slate-50/70 border-slate-200'
+              : 'bg-slate-50/40 border-slate-200 opacity-60'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                currentStage === 'team_approved' || currentStage === 'locked'
+                  ? 'bg-emerald-600 text-white'
+                  : currentStage === 'submitted'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-slate-300 text-slate-600'
+              }`}>
+                {currentStage === 'team_approved' || currentStage === 'locked' ? '✓' : '2'}
+              </span>
+              <span className="text-xs font-bold text-slate-800">2. Chỉ huy Đội duyệt</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1 pl-7">
+              {currentApproval?.teamApprovedBy ? `Đã duyệt: ${currentApproval.teamApprovedBy}` : 'Kiểm tra & xác nhận số liệu'}
+            </p>
+          </div>
+
+          {/* Step 3 */}
+          <div className={`p-3 rounded-xl border transition-all ${
+            currentStage === 'locked'
+              ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-100'
+              : currentStage === 'team_approved'
+              ? 'bg-purple-50/60 border-purple-300 ring-2 ring-purple-100'
+              : 'bg-slate-50/40 border-slate-200 opacity-60'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                currentStage === 'locked'
+                  ? 'bg-emerald-600 text-white'
+                  : currentStage === 'team_approved'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-slate-300 text-slate-600'
+              }`}>
+                {currentStage === 'locked' ? '🔒' : '3'}
+              </span>
+              <span className="text-xs font-bold text-slate-800">3. Lãnh đạo Phòng Khóa sổ</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1 pl-7">
+              {currentApproval?.approvedBy ? `Khóa sổ bởi: ${currentApproval.approvedBy}` : 'Phê duyệt quyết toán tài chính'}
+            </p>
+          </div>
+        </div>
+
+        {/* REJECTION REASON BANNER */}
+        {currentApproval?.rejectionReason && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
+            <span className="text-sm">⚠️</span>
+            <div className="space-y-0.5">
+              <span className="font-bold">Hồ sơ bị trả lại yêu cầu chỉnh sửa:</span>
+              <p className="font-medium text-rose-700">{currentApproval.rejectionReason}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Control Layout Grid */}
@@ -2571,15 +2871,26 @@ export default function ApprovalAndReports({
               ) : null}
             </div>
 
-            {/* Excel Export Button */}
+            {/* 1-Click Batch Export Package Button */}
+            <button
+              onClick={handleExportBatchPackage}
+              disabled={isEditingTemplate || isExporting}
+              className="w-full flex items-center justify-center gap-2 px-3 py-3 text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5"
+              title="Tải toàn bộ 07 biểu mẫu Excel một lượt"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>📦 Xuất Trọn Bộ 07 Biểu (1-Click)</span>
+            </button>
+
+            {/* Excel Single Export Button */}
             <button
               onClick={handleExportExcel}
               disabled={isEditingTemplate || isExporting}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm cursor-pointer"
-              title="Xuất file Excel (.xls) để tự do chỉnh sửa bảng tính offline"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg transition-all shadow-2xs cursor-pointer"
+              title="Xuất riêng biểu mẫu hiện tại dạng file Excel (.xls)"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất file Excel (.xls) — Sửa Offline</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Xuất Excel biểu hiện tại (.xls)</span>
             </button>
 
             <div className="grid grid-cols-2 gap-2">
@@ -4172,6 +4483,48 @@ export default function ApprovalAndReports({
         </div>
 
       </div>
+
+      {/* REJECTION REASON DIALOG MODAL */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 text-rose-600 font-bold border-b border-slate-100 pb-3">
+              <span className="text-xl">↩️</span>
+              <h3 className="text-base text-slate-800">Trả lại yêu cầu chỉnh sửa hồ sơ</h3>
+            </div>
+            <p className="text-xs text-slate-500">
+              Vui lòng nhập rõ lý do trả lại hoặc các biểu mẫu/chỉ số cần chỉnh sửa để cấp dưới tiến hành hoàn thiện:
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={rejectReasonInput}
+              onChange={(e) => setRejectReasonInput(e.target.value)}
+              placeholder="VD: Kiểm tra lại số ca đêm của Đ/c Nguyễn Văn A ngày 15/06; Bổ sung chữ ký người lập biểu..."
+              className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl text-xs outline-hidden"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRejectReasonInput('');
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleWorkflowRejectSubmit}
+                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Xác nhận trả lại
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

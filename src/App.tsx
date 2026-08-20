@@ -8,7 +8,7 @@ import {
 
 // Icons
 import { 
-  LayoutDashboard, Users, ShieldAlert, CalendarRange, ClipboardCheck, FileSpreadsheet, Settings, HelpCircle, LogOut, Check, Shield, User as UserIcon, Lock, RefreshCw
+  LayoutDashboard, Users, ShieldAlert, CalendarRange, ClipboardCheck, FileSpreadsheet, Settings, HelpCircle, LogOut, Check, Shield, User as UserIcon, Lock, RefreshCw, Award
 } from 'lucide-react';
 
 // Components
@@ -20,6 +20,7 @@ import AttendanceManagement from './components/AttendanceManagement';
 import ApprovalAndReports from './components/ApprovalAndReports';
 import SecurityAndSettings from './components/SecurityAndSettings';
 import DatabaseGuide from './components/DatabaseGuide';
+import { EmulationAndStatistics } from './components/EmulationAndStatistics';
 import { hasSupabaseConfig, supabase } from './lib/supabaseClient';
 import {
   loadAppStateFromSupabase,
@@ -201,6 +202,7 @@ export default function App() {
     { id: 'schedules', label: 'Nhập lịch tuần tra kiểm soát', shortLabel: 'Lịch', icon: CalendarRange, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'attendance', label: 'Khai báo Làm việc/Nghỉ phép', shortLabel: 'Chấm công', icon: ClipboardCheck, roles: ['admin', 'doi', 'to_dia_ban'] },
     { id: 'reports', label: 'Duyệt & Xuất Báo cáo', shortLabel: 'Báo cáo', icon: FileSpreadsheet, roles: ['admin', 'doi', 'to_dia_ban'] },
+    { id: 'emulation', label: 'Thi đua & Dự toán', shortLabel: 'Thi đua', icon: Award, roles: ['admin', 'doi', 'to_dia_ban'] },
   ] as const;
   const systemNavItems = [
     { id: 'settings', label: 'Cấu hình & Bảo mật', shortLabel: 'Cài đặt', icon: Settings, roles: ['admin', 'doi', 'to_dia_ban'] },
@@ -775,6 +777,18 @@ export default function App() {
                 currentUser={currentUser} 
                 schedules={scopedSchedules}
                 teams={scopedTeams}
+              />
+            )}
+
+            {activeTab === 'emulation' && (
+              <EmulationAndStatistics 
+                currentUser={currentUser}
+                officers={scopedOfficers}
+                schedules={scopedSchedules}
+                attendance={scopedAttendance}
+                rations={scopedRations}
+                nightShifts={scopedNightShifts}
+                settings={effectiveSettings}
               />
             )}
 

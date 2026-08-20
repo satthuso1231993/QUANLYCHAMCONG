@@ -83,10 +83,13 @@ export default function PatrolSchedules({
   const [startTime, setStartTime] = useState('19:00');
   const [endTime, setEndTime] = useState('23:00');
   const [route, setRoute] = useState('');
+  const [routeType, setRouteType] = useState<'Quốc lộ' | 'Tỉnh lộ' | 'Nội thị' | 'Liên xã / Huyện lộ'>('Quốc lộ');
   const [area, setArea] = useState('');
   const [topic, setTopic] = useState('');
   const [missionType, setMissionType] = useState<MissionType>('Tuần tra kiểm soát');
   const [teamId, setTeamId] = useState('');
+  const [vehicle, setVehicle] = useState('');
+  const [equipment, setEquipment] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<'Bản nháp' | 'Đã ban hành'>('Đã ban hành');
 
@@ -106,6 +109,24 @@ export default function PatrolSchedules({
   const [topic2, setTopic2] = useState('');
   const [missionType2, setMissionType2] = useState<MissionType>('Chuyên đề nồng độ cồn');
 
+  const standardEquipments = [
+    'Máy đo nồng độ cồn',
+    'Súng bắn tốc độ có ghi hình',
+    'Cân tải trọng lưu động',
+    'Camera giám sát đeo ngực',
+    'Bộ đàm cầm tay',
+    'Đèn gậy chỉ huy giao thông',
+  ];
+
+  const standardVehicles = [
+    'Xe Ô tô TTKS (BKS 78A-001.23)',
+    'Xe Ô tô TTKS (BKS 78A-002.45)',
+    'Xe Bán tải chuyên dùng CSGT',
+    'Mô tô đặc chủng (BKS 78A1-0012)',
+    'Mô tô đặc chủng (BKS 78A1-0034)',
+    'Đi bộ / Tuần tra cơ động',
+  ];
+
   const missionTypes: MissionType[] = [
     'Tuần tra kiểm soát',
     'Chuyên đề nồng độ cồn',
@@ -116,9 +137,99 @@ export default function PatrolSchedules({
     'Khác'
   ];
 
+  // Target Officers involved in current form
+  const currentAssignedOfficerIds = useMemo(() => {
+    if (assignmentMode === 'individual') return selectedOfficerIds;
+    if (assignmentMode === 'team' && teamId) {
+      const t = teams.find(team => team.id === teamId);
+      return t ? t.memberIds : [];
+    }
+    return [];
+  }, [assignmentMode, selectedOfficerIds, teamId, teams]);
+
+  // SMART CONFLICT & FATIGUE WARNINGS
+  const smartWarnings = useMemo(() => {
+    if (!showModal || currentAssignedOfficerIds.length === 0) return [];
+    const warnings: { type: 'conflict' | 'fatigue' | 'quota'; text: string }[] = [];
+    const isNight = isNightShift(startTime, endTime);
+    const maxQuota = settings.maxNightShiftCompensationTurns || 10;
+    const currentMonthStr = startDate.substring(0, 7);
+
+    currentAssignedOfficerIds.forEach(officerId => {
+      const officer = officers.find(o => o.id === officerId);
+      const officerName = officer ? `${officer.rank} ${officer.fullName}` : `CBCS #${officerId}`;
+
+      // 1. Check time overlaps on same date
+      const sameDaySchedules = schedules.filter(s => 
+        s.date === startDate && 
+        (!editingSchedule || s.id !== editingSchedule.id) &&
+        ((s.customOfficerIds && s.customOfficerIds.includes(officerId)) ||
+         (!s.customOfficerIds && teams.find(t => t.id === s.teamId)?.memberIds.includes(officerId)))
+      );
+
+      sameDaySchedules.forEach(other => {
+        const [s1H, s1M] = startTime.split(':').map(Number);
+        const [e1H, e1M] = endTime.split(':').map(Number);
+        const [s2H, s2M] = other.startTime.split(':').map(Number);
+        const [e2H, e2M] = other.endTime.split(':').map(Number);
+
+        const start1 = s1H * 60 + s1M;
+        const end1 = (e1H < s1H ? e1H + 24 : e1H) * 60 + e1M;
+        const start2 = s2H * 60 + s2M;
+        const end2 = (e2H < s2H ? e2H + 24 : e2H) * 60 + e2M;
+
+        if (Math.max(start1, start2) < Math.min(end1, end2)) {
+          warnings.push({
+            type: 'conflict',
+            text: `⚠️ Trùng giờ ca trực: ${officerName} đã có ca [${other.startTime} - ${other.endTime}] cùng ngày ${formatDateDmy(startDate)}!`,
+          });
+        }
+      });
+
+      // 2. Check consecutive night shifts
+      if (isNight) {
+        const [y, m, d] = startDate.split('-').map(Number);
+        const prevD = new Date(y, m - 1, d - 1);
+        const prevDateStr = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}-${String(prevD.getDate()).padStart(2, '0')}`;
+        
+        const hadPrevNight = schedules.some(s =>
+          s.date === prevDateStr &&
+          isNightShift(s.startTime, s.endTime) &&
+          ((s.customOfficerIds && s.customOfficerIds.includes(officerId)) ||
+           (!s.customOfficerIds && teams.find(t => t.id === s.teamId)?.memberIds.includes(officerId)))
+        );
+
+        if (hadPrevNight) {
+          warnings.push({
+            type: 'fatigue',
+            text: `🌙 Cảnh báo trực đêm liên tiếp: ${officerName} đã trực đêm ngày hôm trước (${formatDateDmy(prevDateStr)}), hãy chú ý đảm bảo sức khỏe!`,
+          });
+        }
+
+        // 3. Check monthly max night shifts quota
+        const monthlyNightCount = schedules.filter(s =>
+          s.date.startsWith(currentMonthStr) &&
+          isNightShift(s.startTime, s.endTime) &&
+          (!editingSchedule || s.id !== editingSchedule.id) &&
+          ((s.customOfficerIds && s.customOfficerIds.includes(officerId)) ||
+           (!s.customOfficerIds && teams.find(t => t.id === s.teamId)?.memberIds.includes(officerId)))
+        ).length;
+
+        if (monthlyNightCount >= maxQuota) {
+          warnings.push({
+            type: 'quota',
+            text: `🚫 Cảnh báo định mức: ${officerName} đã tham gia ${monthlyNightCount}/${maxQuota} ca đêm trong tháng ${currentMonthStr.substring(5, 7)}!`,
+          });
+        }
+      }
+    });
+
+    return warnings;
+  }, [showModal, currentAssignedOfficerIds, startTime, endTime, startDate, schedules, editingSchedule, officers, teams, settings]);
+
   // Check if a date string YYYY-MM is locked
   const isMonthLocked = (dateStr: string) => {
-    return false; // Lock functionality removed
+    return false; // Lock functionality handled by stage
   };
 
   const handlePrevMonth = () => {
@@ -145,10 +256,13 @@ export default function PatrolSchedules({
     setStartTime('08:00');
     setEndTime('12:00');
     setRoute('');
+    setRouteType('Quốc lộ');
     setArea('');
     setTopic('ATGT chung');
     setMissionType('Tuần tra kiểm soát');
     setTeamId(teams[0]?.id || '');
+    setVehicle('Xe Ô tô TTKS (BKS 78A-001.23)');
+    setEquipment(['Máy đo nồng độ cồn', 'Bộ đàm cầm tay']);
     setNotes('');
     setStatus('Đã ban hành');
     setEditingSchedule(null);
@@ -182,9 +296,12 @@ export default function PatrolSchedules({
     setStartTime(sched.startTime);
     setEndTime(sched.endTime);
     setRoute(sched.route || '');
+    setRouteType(sched.routeType || 'Quốc lộ');
     setArea(sched.area || '');
-    setTopic(sched.topic);
-    setMissionType(sched.missionType);
+    setTopic(sched.topic || 'ATGT chung');
+    setMissionType(sched.missionType || 'Tuần tra kiểm soát');
+    setVehicle(sched.vehicle || '');
+    setEquipment(sched.equipment || []);
     setNotes(sched.notes || '');
     setStatus(sched.status);
     setIsTwoShifts(false); // Can only edit single shifts from details list
@@ -259,17 +376,20 @@ export default function PatrolSchedules({
         date: startDate,
         startTime,
         endTime,
-        route: '',
-        area: '',
-        topic: '',
-        missionType: 'Tuần tra kiểm soát',
+        route,
+        routeType,
+        area,
+        topic: topic || 'ATGT chung',
+        missionType,
         teamId: isTeamMode ? teamId : undefined,
         customOfficerIds: isTeamMode ? undefined : selectedOfficerIds,
+        vehicle,
+        equipment,
         notes,
         status
       } : s);
 
-      addLog('Sửa lịch tuần tra', `Đã cập nhật lịch tuần tra ngày ${formatDateDmy(startDate)} (${status}).`);
+      addLog('Sửa lịch tuần tra', `Đã cập nhật lịch tuần tra ngày ${formatDateDmy(startDate)} - ${topic || missionType} (${status}).`);
     } else {
       // Create new schedules in selected date range
       const getDatesInRange = (startStr: string, endStr: string) => {
@@ -319,6 +439,10 @@ export default function PatrolSchedules({
         curDate: string,
         stTime: string,
         edTime: string,
+        mTopic: string,
+        mMissionType: MissionType,
+        mRoute: string,
+        mArea: string,
         shiftNotes: string
       ) => {
         targetArray.push({
@@ -326,12 +450,15 @@ export default function PatrolSchedules({
           date: curDate,
           startTime: stTime,
           endTime: edTime,
-          route: '',
-          area: '',
-          topic: '',
-          missionType: 'Tuần tra kiểm soát',
+          route: mRoute,
+          routeType,
+          area: mArea,
+          topic: mTopic || 'ATGT chung',
+          missionType: mMissionType,
           teamId: isTeamMode ? teamId : undefined,
           customOfficerIds: isTeamMode ? undefined : selectedOfficerIds,
+          vehicle,
+          equipment,
           notes: shiftNotes,
           status
         });
@@ -343,17 +470,17 @@ export default function PatrolSchedules({
       if (isTwoShifts) {
         // Ca 1 creation
         targetDates1.forEach((curDate, index) => {
-          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}_A`, curDate, startTime, endTime, notes ? `${notes} (Ca 1)` : 'Ca 1');
+          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}_A`, curDate, startTime, endTime, topic || 'ATGT chung (Ca 1)', missionType, route, area, notes ? `${notes} (Ca 1)` : 'Ca 1');
         });
 
         // Ca 2 creation
         targetDates2.forEach((curDate, index) => {
-          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}_B`, curDate, startTime2, endTime2, notes ? `${notes} (Ca 2)` : 'Ca 2');
+          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}_B`, curDate, startTime2, endTime2, topic2 || 'Nồng độ cồn (Ca 2)', missionType2, route2 || route, area2 || area, notes ? `${notes} (Ca 2)` : 'Ca 2');
         });
       } else {
         // Standard single shift creation
         targetDates1.forEach((curDate, index) => {
-          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}`, curDate, startTime, endTime, notes);
+          addShiftToSchedules(newSchedules, `SCH_${timestamp}_${index}`, curDate, startTime, endTime, topic || 'ATGT chung', missionType, route, area, notes);
         });
       }
 
@@ -363,7 +490,7 @@ export default function PatrolSchedules({
         : (startDate === endDate
           ? `ngày ${formatDateDmy(startDate)}`
           : `từ ngày ${formatDateDmy(startDate)} đến ngày ${formatDateDmy(endDate)}`);
-      addLog('Tạo lịch tuần tra', `Đã lập lịch tuần tra mới ${dateDesc} (${status}).`);
+      addLog('Tạo lịch tuần tra', `Đã lập lịch tuần tra mới ${dateDesc} - ${topic || missionType} (${status}).`);
     }
 
     setSchedules(updatedSchedules);
@@ -702,15 +829,39 @@ export default function PatrolSchedules({
                             <span>{sched.startTime} - {sched.endTime}{isOvernight ? ' (xuyên ngày)' : ''}</span>
                           </div>
                         </td>
-                        <td className="py-4 px-4 max-w-[250px]">
-                          <div className="flex items-center gap-1.5">
+                        <td className="py-4 px-4 max-w-[280px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className={`font-semibold ${isCustom ? 'text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px]' : 'text-slate-700'}`}>
                               {displayTeamName}
                             </span>
+                            {sched.routeType && (
+                              <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                                {sched.routeType}
+                              </span>
+                            )}
+                            {sched.topic && (
+                              <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium truncate max-w-[140px]" title={sched.topic}>
+                                {sched.topic}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-1 line-clamp-2" title={memberNamesList}>
+                          {sched.vehicle && (
+                            <p className="text-[10px] text-blue-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <span>🚔</span> <span>{sched.vehicle}</span>
+                            </p>
+                          )}
+                          <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2" title={memberNamesList}>
                             <span className="font-semibold text-slate-500">Quân số ({countMembers}):</span> {memberNamesList || 'Chưa phân công'}
                           </p>
+                          {sched.equipment && sched.equipment.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {sched.equipment.map((eq, i) => (
+                                <span key={i} className="text-[8.5px] bg-slate-50 border border-slate-200 text-slate-600 px-1 rounded">
+                                  {eq}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex flex-col items-center gap-1 text-[10px]">
@@ -809,6 +960,24 @@ export default function PatrolSchedules({
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+              
+              {/* SMART WARNINGS BANNER */}
+              {smartWarnings.length > 0 && (
+                <div className="p-3.5 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                    <span className="text-sm">⚠️</span>
+                    <span>HỆ THỐNG PHÁT HIỆN CẢNH BÁO CA TRỰC:</span>
+                  </div>
+                  <div className="space-y-1 pl-5">
+                    {smartWarnings.map((w, idx) => (
+                      <p key={idx} className="text-[11px] font-semibold text-amber-800 leading-relaxed">
+                        {w.text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 {/* Ngày thực hiện hoặc Chọn khoảng ngày */}
                 {editingSchedule ? (
@@ -963,6 +1132,110 @@ export default function PatrolSchedules({
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* TUYẾN ĐƯỜNG & ĐỊA BÀN */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Phân loại tuyến đường</label>
+                  <select
+                    value={routeType}
+                    onChange={(e) => setRouteType(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden font-bold text-slate-800"
+                  >
+                    <option value="Quốc lộ">🛣️ Tuyến Quốc lộ (QL)</option>
+                    <option value="Tỉnh lộ">🛣️ Tuyến Tỉnh lộ (ĐT)</option>
+                    <option value="Nội thị">🏙️ Tuyến Đường Nội thị / Đô thị</option>
+                    <option value="Liên xã / Huyện lộ">🌾 Tuyến Huyện lộ / Liên xã</option>
+                  </select>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tuyến đường tuần tra cụ thể</label>
+                  <input
+                    type="text"
+                    value={route}
+                    onChange={(e) => setRoute(e.target.value)}
+                    placeholder="VD: QL1A Km 1290 - Km 1330..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Địa bàn kiểm soát</label>
+                  <input
+                    type="text"
+                    value={area}
+                    onChange={(e) => setArea(e.target.value)}
+                    placeholder="VD: Địa bàn Thị xã Đông Hòa..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nhiệm vụ & Chuyên đề</label>
+                  <select
+                    value={missionType}
+                    onChange={(e) => {
+                      const val = e.target.value as MissionType;
+                      setMissionType(val);
+                      if (!topic) setTopic(val);
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden font-bold text-slate-800"
+                  >
+                    {missionTypes.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* PHƯƠNG TIỆN TTKS */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Phương tiện TTKS</label>
+                  <input
+                    type="text"
+                    list="vehiclesList"
+                    value={vehicle}
+                    onChange={(e) => setVehicle(e.target.value)}
+                    placeholder="Chọn hoặc nhập phương tiện..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                  />
+                  <datalist id="vehiclesList">
+                    {standardVehicles.map((v, i) => (
+                      <option key={i} value={v} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* TRANG THIẾT BỊ KỸ THUẬT NGHIỆP VỤ */}
+                <div className="col-span-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    Trang thiết bị kỹ thuật nghiệp vụ mang theo ca trực:
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {standardEquipments.map((eq, i) => {
+                      const isSelected = equipment.includes(eq);
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setEquipment(equipment.filter(item => item !== eq));
+                            } else {
+                              setEquipment([...equipment, eq]);
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-semibold border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {isSelected ? '✓ ' : '+ '}{eq}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {!editingSchedule && (

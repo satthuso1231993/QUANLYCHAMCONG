@@ -68,11 +68,14 @@ export interface PatrolSchedule {
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   route?: string; // Tuyến đường
+  routeType?: 'Quốc lộ' | 'Tỉnh lộ' | 'Nội thị' | 'Liên xã / Huyện lộ';
   area?: string; // Địa bàn
   topic: string; // Chuyên đề (e.g. Nồng độ cồn, Tốc độ, Quá tải)
   missionType: MissionType;
   teamId?: string;
   customOfficerIds?: string[];
+  vehicle?: string; // Phương tiện (e.g. 'Ô tô TTKS BKS 78A-001.23')
+  equipment?: string[]; // Thiết bị (e.g. ['Máy đo cồn', 'Súng bắn tốc độ'])
   notes?: string;
   status: 'Bản nháp' | 'Đã ban hành';
 }
@@ -118,6 +121,12 @@ export interface Approval {
   id: string;
   monthString: string; // YYYY-MM
   status: 'Đã khóa' | 'Chưa khóa';
+  stage?: 'draft' | 'submitted' | 'team_approved' | 'locked';
+  submittedBy?: string;
+  submittedAt?: string;
+  teamApprovedBy?: string;
+  teamApprovedAt?: string;
+  rejectionReason?: string;
   approvedBy: string;
   approvedAt: string;
 }
