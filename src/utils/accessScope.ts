@@ -82,11 +82,19 @@ export const resolveUserScope = (currentUser: User, teams: Team[]): UserScope =>
   // 3. Phân cấp Đội / Tổ địa bàn (thu thập đệ quy toàn bộ tổ con/cháu)
   const allowedTeamIds = collectDescendantTeamIds(currentUser.managedTeamId, teams);
 
-  // Lấy danh sách ID tất cả cán bộ thuộc các đơn vị trong phạm vi
+  // Nếu là tài khoản Tổ địa bàn / Tổ TTKS, lấy thêm phạm vi Đội trực thuộc để Tổ trưởng có thể điều động, thêm/bớt CBCS trong Đội vào ca
+  const managedTeam = teams.find((t) => t.id === currentUser.managedTeamId);
+  const parentDoiId = managedTeam?.parentTeamId;
+  const parentDoiTeamIds = parentDoiId ? collectDescendantTeamIds(parentDoiId, teams) : [];
+  const officerPoolTeamIds = Array.from(
+    new Set([...allowedTeamIds, ...parentDoiTeamIds, ...(parentDoiId ? [parentDoiId] : [])])
+  );
+
+  // Lấy danh sách ID tất cả cán bộ thuộc các đơn vị trong phạm vi (kèm phạm vi Đội để đổi ca/tăng cường)
   const allowedOfficerIds = Array.from(
     new Set(
       teams
-        .filter((t) => allowedTeamIds.includes(t.id))
+        .filter((t) => officerPoolTeamIds.includes(t.id))
         .flatMap((t) => [t.leaderId, ...t.memberIds].filter(Boolean))
     )
   );

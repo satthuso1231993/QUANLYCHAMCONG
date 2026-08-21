@@ -731,6 +731,7 @@ export default function App() {
                 officers={officers} 
                 settings={effectiveSettings}
                 addLog={addLog} 
+                currentUser={currentUser}
               />
             )}
 

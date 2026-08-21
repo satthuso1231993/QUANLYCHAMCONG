@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Officer, SystemSettings, Team } from '../types';
-import { Plus, Users, Shield, User, Edit2, Trash2, X, Check, CheckSquare, Square, Building2, MapPin, Radio, Layers, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Officer, SystemSettings, Team, User } from '../types';
+import { Plus, Users, Shield, Edit2, Trash2, X, Check, CheckSquare, Square, Building2, MapPin, Radio, Layers, AlertCircle, Search } from 'lucide-react';
 import { getTeamTypeLabel } from '../utils/accessScope';
 import { getFixedPersonnelOfficers } from '../utils/personnel';
 
@@ -10,11 +10,12 @@ interface TeamManagementProps {
   officers: Officer[];
   settings: SystemSettings;
   addLog: (action: string, details: string) => void;
+  currentUser?: User;
 }
 
 type ViewFilter = 'all' | 'doi' | 'to_dia_ban' | 'to_ttks';
 
-export default function TeamManagement({ teams, setTeams, officers, settings, addLog }: TeamManagementProps) {
+export default function TeamManagement({ teams, setTeams, officers, settings, addLog, currentUser }: TeamManagementProps) {
   const [activeTab, setActiveTab] = useState<ViewFilter>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -26,8 +27,23 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
   const [parentTeamId, setParentTeamId] = useState('');
   const [leaderId, setLeaderId] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [officerSearch, setOfficerSearch] = useState('');
 
   const fixedPersonnelOfficers = getFixedPersonnelOfficers(officers);
+
+  const isSuperManager = !currentUser || currentUser.role === 'admin' || currentUser.role === 'doi';
+
+  const canEditTeam = (team: Team) => {
+    if (isSuperManager) return true;
+    if (currentUser?.role === 'to_dia_ban') {
+      return team.id === currentUser.managedTeamId || team.parentTeamId === currentUser.managedTeamId;
+    }
+    return false;
+  };
+
+  const canDeleteTeam = (team: Team) => {
+    return isSuperManager;
+  };
 
   const doiTeams = teams.filter((t) => (t.teamType || 'doi') === 'doi');
   const diaBanTeams = teams.filter((t) => (t.teamType || 'doi') === 'to_dia_ban');
@@ -133,6 +149,29 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
   const activeOfficers = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
 
+  const selectableOfficers = useMemo(() => {
+    let pool = activeOfficers;
+    if (currentUser?.role === 'to_dia_ban') {
+      const parentDoi = doiTeams.find(d => d.id === parentTeamId || d.id === editingTeam?.parentTeamId);
+      if (parentDoi && parentDoi.memberIds && parentDoi.memberIds.length > 0) {
+        const allowedSet = new Set([...parentDoi.memberIds, ...memberIds]);
+        pool = activeOfficers.filter(o => allowedSet.has(o.id));
+      }
+    }
+    return pool;
+  }, [activeOfficers, currentUser, doiTeams, parentTeamId, editingTeam, memberIds]);
+
+  const searchedOfficers = useMemo(() => {
+    if (!officerSearch.trim()) return selectableOfficers;
+    const q = officerSearch.toLowerCase();
+    return selectableOfficers.filter(o => 
+      o.fullName.toLowerCase().includes(q) || 
+      o.badgeNumber.toLowerCase().includes(q) || 
+      o.rank.toLowerCase().includes(q) ||
+      o.position.toLowerCase().includes(q)
+    );
+  }, [selectableOfficers, officerSearch]);
+
   const filteredTeams = teams.filter(t => {
     if (activeTab === 'all') return true;
     return (t.teamType || 'doi') === activeTab;
@@ -154,21 +193,25 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
 
         {/* Quick Add Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => handleOpenAdd('doi')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Đội mới</span>
-          </button>
+          {isSuperManager && (
+            <>
+              <button
+                onClick={() => handleOpenAdd('doi')}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm Đội mới</span>
+              </button>
 
-          <button
-            onClick={() => handleOpenAdd('to_dia_ban')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Tổ địa bàn</span>
-          </button>
+              <button
+                onClick={() => handleOpenAdd('to_dia_ban')}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm Tổ địa bàn</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => handleOpenAdd('to_ttks')}
@@ -374,20 +417,24 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                     </div>
 
                     <div className="flex gap-1 shrink-0">
-                      <button
-                        onClick={() => handleOpenEdit(team)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                        title="Chỉnh sửa đơn vị"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(team.id, team.name)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Xóa đơn vị"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canEditTeam(team) && (
+                        <button
+                          onClick={() => handleOpenEdit(team)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Chỉnh sửa cơ cấu & quân số"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canDeleteTeam(team) && (
+                        <button
+                          onClick={() => handleDelete(team.id, team.name)}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Xóa đơn vị"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -609,13 +656,13 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-xl text-xs outline-hidden"
                 >
                   <option value="">(Chưa chỉ định — Sẽ bổ nhiệm sau)</option>
-                  {activeOfficers.map(o => (
+                  {selectableOfficers.map(o => (
                     <option key={o.id} value={o.id}>
                       {o.rank} {o.fullName} ({o.badgeNumber}) - {o.position}
                     </option>
                   ))}
                 </select>
-                {activeOfficers.length === 0 && (
+                {selectableOfficers.length === 0 && (
                   <p className="text-[11px] text-slate-400 mt-1">
                     💡 Hiện chưa có cán bộ trong danh mục. Bạn cứ tạo Đội/Tổ trước rồi vào bổ nhiệm sau.
                   </p>
@@ -623,38 +670,76 @@ export default function TeamManagement({ teams, setTeams, officers, settings, ad
               </div>
 
               {/* Members Checklist */}
-              {activeOfficers.length > 0 && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-slate-500">
-                    Phân công cán bộ chiến sĩ vào đơn vị (Chọn nhiều)
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto border border-slate-200 rounded-xl p-3 scrollbar-thin">
-                    {activeOfficers.map(o => {
-                      const isSelected = memberIds.includes(o.id) || o.id === leaderId;
-                      const isSelfLeader = o.id === leaderId;
+              {selectableOfficers.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider text-slate-500">
+                      Phân công CBCS vào đơn vị ({memberIds.length} đã chọn)
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMemberIds(selectableOfficers.map(o => o.id))}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setMemberIds(leaderId ? [leaderId] : [])}
+                        className="text-[10px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        Bỏ chọn hết
+                      </button>
+                    </div>
+                  </div>
 
-                      return (
-                        <div
-                          key={o.id}
-                          onClick={() => !isSelfLeader && handleToggleMember(o.id)}
-                          className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
-                            isSelected 
-                              ? 'bg-blue-50 border-blue-200 text-blue-900 font-semibold' 
-                              : 'hover:bg-slate-50 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <div className="truncate mr-2">
-                            <span>{o.rank} {o.fullName}</span>
-                            {isSelfLeader && <span className="ml-1 text-[10px] text-blue-600 font-bold">(Chỉ huy)</span>}
+                  {/* Search input for CBCS checklist */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={officerSearch}
+                      onChange={(e) => setOfficerSearch(e.target.value)}
+                      placeholder="Tìm kiếm cán bộ theo tên, số hiệu hoặc cấp bậc..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-lg text-xs outline-hidden"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto border border-slate-200 rounded-xl p-3 scrollbar-thin">
+                    {searchedOfficers.length === 0 ? (
+                      <div className="col-span-2 text-center text-slate-400 text-xs py-3">
+                        Không tìm thấy cán bộ chiến sĩ phù hợp
+                      </div>
+                    ) : (
+                      searchedOfficers.map(o => {
+                        const isSelected = memberIds.includes(o.id) || o.id === leaderId;
+                        const isSelfLeader = o.id === leaderId;
+
+                        return (
+                          <div
+                            key={o.id}
+                            onClick={() => !isSelfLeader && handleToggleMember(o.id)}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
+                              isSelected 
+                                ? 'bg-blue-50 border-blue-200 text-blue-900 font-semibold' 
+                                : 'hover:bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            <div className="truncate mr-2">
+                              <span>{o.rank} {o.fullName}</span>
+                              {isSelfLeader && <span className="ml-1 text-[10px] text-blue-600 font-bold">(Chỉ huy)</span>}
+                            </div>
+                            {isSelected ? (
+                              <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                            )}
                           </div>
-                          {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               )}

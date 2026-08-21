@@ -93,15 +93,9 @@ export default function PatrolSchedules({
   const [topic, setTopic] = useState('');
   const [missionType, setMissionType] = useState<MissionType>('Tuần tra kiểm soát');
   const [teamId, setTeamId] = useState('');
-  const [vehicle, setVehicle] = useState('');
-  const [equipment, setEquipment] = useState<string[]>([]);
+  const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<'Bản nháp' | 'Đã ban hành'>('Đã ban hành');
-
-  // Custom Officer Assignments
-  const [assignmentMode, setAssignmentMode] = useState<'team' | 'individual'>('team');
-  const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
-  const [searchVal, setSearchVal] = useState('');
 
   // Sister Form Fields for Shift 2 (Quick Two-Shift Entry Method)
   const [isTwoShifts, setIsTwoShifts] = useState(false);
@@ -114,33 +108,43 @@ export default function PatrolSchedules({
   const [topic2, setTopic2] = useState('');
   const [missionType2, setMissionType2] = useState<MissionType>('Chuyên đề nồng độ cồn');
 
-  const standardEquipments = [
-    'Máy đo nồng độ cồn',
-    'Súng bắn tốc độ có ghi hình',
-    'Cân tải trọng lưu động',
-    'Camera giám sát đeo ngực',
-    'Bộ đàm cầm tay',
-    'Đèn gậy chỉ huy giao thông',
-  ];
+  const selectedTeam = useMemo(() => teams.find(t => t.id === teamId), [teams, teamId]);
 
-  const standardVehicles = [
-    'Xe Ô tô TTKS (BKS 78A-001.23)',
-    'Xe Ô tô TTKS (BKS 78A-002.45)',
-    'Xe Bán tải chuyên dùng CSGT',
-    'Mô tô đặc chủng (BKS 78A1-0012)',
-    'Mô tô đặc chủng (BKS 78A1-0034)',
-    'Đi bộ / Tuần tra cơ động',
-  ];
+  // Handle Team change in modal: resets default team members
+  const handleTeamChange = (newTeamId: string) => {
+    setTeamId(newTeamId);
+    const t = teams.find(team => team.id === newTeamId);
+    if (t) {
+      setSelectedOfficerIds([...t.memberIds]);
+    } else {
+      setSelectedOfficerIds([]);
+    }
+  };
 
-  const activeEquipments = useMemo(() => {
-    if (settings.equipmentList && settings.equipmentList.length > 0) return settings.equipmentList;
-    return standardEquipments;
-  }, [settings.equipmentList]);
+  // Add / remove officers in current shift
+  const handleRemoveOfficerFromShift = (officerId: string) => {
+    setSelectedOfficerIds(prev => prev.filter(id => id !== officerId));
+  };
 
-  const activeVehicles = useMemo(() => {
-    if (settings.vehicles && settings.vehicles.length > 0) return settings.vehicles;
-    return standardVehicles;
-  }, [settings.vehicles]);
+  const handleAddOfficerToShift = (officerId: string) => {
+    if (!officerId) return;
+    if (!selectedOfficerIds.includes(officerId)) {
+      setSelectedOfficerIds(prev => [...prev, officerId]);
+    }
+  };
+
+  const handleResetTeamRoster = () => {
+    if (selectedTeam) {
+      setSelectedOfficerIds([...selectedTeam.memberIds]);
+    }
+  };
+
+  // Officers in parent Đội or unit available to be added
+  const availableOfficersToAdd = useMemo(() => {
+    const activeOffs = fixedPersonnelOfficers.filter(o => o.status === 'Đang công tác');
+    const scopedOffs = canViewAll ? activeOffs : activeOffs.filter(o => allowedOfficerIds.includes(o.id));
+    return scopedOffs.filter(o => !selectedOfficerIds.includes(o.id));
+  }, [fixedPersonnelOfficers, canViewAll, allowedOfficerIds, selectedOfficerIds]);
 
   const activeRoutes = useMemo(() => {
     if (settings.routesList && settings.routesList.length > 0) return settings.routesList;
@@ -163,14 +167,7 @@ export default function PatrolSchedules({
   ];
 
   // Target Officers involved in current form
-  const currentAssignedOfficerIds = useMemo(() => {
-    if (assignmentMode === 'individual') return selectedOfficerIds;
-    if (assignmentMode === 'team' && teamId) {
-      const t = teams.find(team => team.id === teamId);
-      return t ? t.memberIds : [];
-    }
-    return [];
-  }, [assignmentMode, selectedOfficerIds, teamId, teams]);
+  const currentAssignedOfficerIds = selectedOfficerIds;
 
   // SMART CONFLICT & FATIGUE WARNINGS
   const smartWarnings = useMemo(() => {
@@ -285,15 +282,20 @@ export default function PatrolSchedules({
     setArea('');
     setTopic('ATGT chung');
     setMissionType('Tuần tra kiểm soát');
-    setTeamId(teams[0]?.id || '');
-    setVehicle('Xe Ô tô TTKS (BKS 78A-001.23)');
-    setEquipment(['Máy đo nồng độ cồn', 'Bộ đàm cầm tay']);
+    
+    // Choose appropriate default team based on user
+    const availableTeams = teams.filter(t => canViewAll || allowedTeamIds.includes(t.id));
+    const defaultTeam = (currentUser.managedTeamId && availableTeams.find(t => t.id === currentUser.managedTeamId)) 
+      || availableTeams[0] 
+      || teams[0];
+    
+    const initialTeamId = defaultTeam ? defaultTeam.id : '';
+    setTeamId(initialTeamId);
+    setSelectedOfficerIds(defaultTeam ? [...defaultTeam.memberIds] : []);
+
     setNotes('');
     setStatus('Đã ban hành');
     setEditingSchedule(null);
-    setAssignmentMode('team');
-    setSelectedOfficerIds([]);
-    setSearchVal('');
 
     // Reset second shift states
     setIsTwoShifts(false);
@@ -325,23 +327,19 @@ export default function PatrolSchedules({
     setArea(sched.area || '');
     setTopic(sched.topic || 'ATGT chung');
     setMissionType(sched.missionType || 'Tuần tra kiểm soát');
-    setVehicle(sched.vehicle || '');
-    setEquipment(sched.equipment || []);
+    setTeamId(sched.teamId || '');
+
+    if (sched.customOfficerIds && sched.customOfficerIds.length > 0) {
+      setSelectedOfficerIds([...sched.customOfficerIds]);
+    } else {
+      const t = teams.find(team => team.id === sched.teamId);
+      setSelectedOfficerIds(t ? [...t.memberIds] : []);
+    }
+
     setNotes(sched.notes || '');
     setStatus(sched.status);
     setIsTwoShifts(false); // Can only edit single shifts from details list
 
-    if (sched.customOfficerIds && sched.customOfficerIds.length > 0) {
-      setAssignmentMode('individual');
-      setSelectedOfficerIds(sched.customOfficerIds);
-      setTeamId('');
-    } else {
-      setAssignmentMode('team');
-      setTeamId(sched.teamId || '');
-      setSelectedOfficerIds([]);
-    }
-
-    setSearchVal('');
     setShowModal(true);
   };
 
@@ -366,25 +364,19 @@ export default function PatrolSchedules({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const isTeamMode = assignmentMode === 'team';
 
-    if (isTeamMode && !teamId) {
-      alert('Vui lòng chọn Tổ tuần tra!');
+    if (!teamId) {
+      alert('Vui lòng chọn Tổ tuần tra phụ trách!');
       return;
     }
 
-    if (isTeamMode && !canViewAll && !allowedTeamIds.includes(teamId)) {
+    if (!canViewAll && !allowedTeamIds.includes(teamId)) {
       alert('Bạn chỉ được lập lịch cho đội hoặc tổ địa bàn thuộc phạm vi quản lý của tài khoản này!');
       return;
     }
 
-    if (!isTeamMode && selectedOfficerIds.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 cán bộ chiến sĩ để thực hiện lịch tuần tra!');
-      return;
-    }
-
-    if (!isTeamMode && !selectedOfficerIds.every((id) => allowedOfficerIds.includes(id))) {
-      alert('Danh sách CBCS được chọn có người nằm ngoài phạm vi quản lý của tài khoản này!');
+    if (selectedOfficerIds.length === 0) {
+      alert('Vui lòng giữ lại hoặc thêm ít nhất 1 cán bộ chiến sĩ để thực hiện lịch tuần tra!');
       return;
     }
 
@@ -406,10 +398,8 @@ export default function PatrolSchedules({
         area,
         topic: topic || 'ATGT chung',
         missionType,
-        teamId: isTeamMode ? teamId : undefined,
-        customOfficerIds: isTeamMode ? undefined : selectedOfficerIds,
-        vehicle,
-        equipment,
+        teamId,
+        customOfficerIds: selectedOfficerIds,
         notes,
         status
       } : s);
@@ -480,10 +470,8 @@ export default function PatrolSchedules({
           area: mArea,
           topic: mTopic || 'ATGT chung',
           missionType: mMissionType,
-          teamId: isTeamMode ? teamId : undefined,
-          customOfficerIds: isTeamMode ? undefined : selectedOfficerIds,
-          vehicle,
-          equipment,
+          teamId,
+          customOfficerIds: selectedOfficerIds,
           notes: shiftNotes,
           status
         });
@@ -610,21 +598,17 @@ export default function PatrolSchedules({
 
     const rows = monthPlanSchedules.map((s, idx) => {
       const roster = getShiftRosterInfo(s);
-      const eqText = s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Bộ đàm, gậy chỉ huy, CCHT';
-      const vehText = s.vehicle || 'Xe Ô tô TTKS';
       const routeText = s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Tuyến phụ trách');
 
       return `
         <tr style="height: 32px;">
           <td style="border: 0.5pt solid #52525b; text-align: center;">${idx + 1}</td>
           <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${formatDateDmy(s.date)}<br/><span style="font-size: 9pt; font-weight: normal;">${s.startTime} - ${s.endTime}</span></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${routeText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;">${routeText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;">
             <b>${roster.leaderName || 'Tổ TTKS'}</b>${roster.memberNames ? `<br/><span style="font-size: 9pt;">${roster.memberNames}</span>` : ''}
           </td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${vehText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">${eqText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;">${s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}</td>
         </tr>
       `;
     }).join('');
@@ -667,12 +651,10 @@ export default function PatrolSchedules({
     <thead>
       <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
         <th style="width: 35px;">STT</th>
-        <th style="width: 110px;">Ngày & Ca trực</th>
-        <th style="width: 180px;">Tuyến đường / Địa bàn</th>
-        <th style="width: 220px;">Lực lượng thực hiện (Tổ công tác)</th>
-        <th style="width: 160px;">Phương tiện TTKS</th>
-        <th>Trang thiết bị kỹ thuật & CCHT</th>
-        <th style="width: 140px;">Nội dung / Chuyên đề</th>
+        <th style="width: 120px;">Ngày & Ca trực</th>
+        <th style="width: 220px;">Tuyến đường / Địa bàn phụ trách</th>
+        <th style="width: 280px;">Lực lượng thực hiện (Tổ trưởng & CBCS)</th>
+        <th>Nội dung / Chuyên đề kiểm soát</th>
       </tr>
     </thead>
     <tbody>
@@ -683,8 +665,8 @@ export default function PatrolSchedules({
   <div style="margin-top: 15px; font-size: 10.5pt; line-height: 1.4;">
     <b>* Yêu cầu công tác:</b><br/>
     1. Cán bộ chiến sỹ chấp hành nghiêm Thông tư số 32/2023/TT-BCA, quy trình TTKS và Điều lệnh CAND.<br/>
-    2. Kiểm tra tình trạng kỹ thuật của phương tiện, trang thiết bị nghiệp vụ (đặc biệt số Seri máy đo cồn, súng bắn tốc độ) trước khi xuất phát.<br/>
-    3. Kết thúc ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và bàn giao phương tiện, trang thiết bị đúng quy định.
+    2. Nắm vững địa bàn, tuyến đường phân công; chủ động xử lý nghiêm các hành vi vi phạm trật tự ATGT.<br/>
+    3. Kết thúc ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và báo cáo chỉ huy theo quy định.
   </div>
 
   <table class="no-border" style="width: 100%; margin-top: 25px;">
@@ -727,20 +709,16 @@ export default function PatrolSchedules({
 
     const rows = targetSchedules.map((s, idx) => {
       const roster = getShiftRosterInfo(s);
-      const eqText = s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Máy đo cồn, súng tốc độ, bộ đàm, CCHT';
-      const vehText = s.vehicle || 'Xe Ô tô TTKS';
       const routeText = s.route ? `${s.route}${s.area ? ` (${s.area})` : ''}` : (s.area || 'Tuyến phụ trách');
 
       return `
         <tr style="height: 36px;">
           <td style="border: 0.5pt solid #52525b; text-align: center;">${idx + 1}</td>
           <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${formatDateDmy(s.date)}<br/><span style="font-size: 9pt; font-weight: normal;">${s.startTime} - ${s.endTime}</span></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;"><b>${roster.leaderName || 'Tổ TTKS'}</b><br/><span style="font-size: 9pt;">${roster.memberNames}</span></td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${routeText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px;">${vehText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">${eqText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 4px; font-size: 9pt;">Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo quy định.</td>
-          <td style="border: 0.5pt solid #52525b; text-align: center; font-size: 9pt;">Đầy đủ, an toàn</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;"><b>${roster.leaderName || 'Tổ TTKS'}</b><br/><span style="font-size: 9pt;">${roster.memberNames}</span></td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;">${routeText}</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px; font-size: 9.5pt;">Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo chuyên đề: ${s.topic || s.missionType || 'TTKS'}.</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-size: 9.5pt;">Đầy đủ, an toàn</td>
           <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Đã ký</td>
         </tr>
       `;
@@ -784,14 +762,12 @@ export default function PatrolSchedules({
     <thead>
       <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
         <th style="width: 35px;">STT</th>
-        <th style="width: 110px;">Ngày & Ca trực</th>
-        <th style="width: 180px;">Tổ TTKS (Tổ trưởng & CBCS)</th>
-        <th style="width: 160px;">Tuyến đường / Địa bàn</th>
-        <th style="width: 140px;">Phương tiện TTKS</th>
-        <th style="width: 180px;">Trang thiết bị mang theo</th>
-        <th>Diễn biến & Kết quả xử lý</th>
-        <th style="width: 100px;">Bàn giao thiết bị</th>
-        <th style="width: 80px;">Ký nhận</th>
+        <th style="width: 120px;">Ngày & Khung giờ</th>
+        <th style="width: 250px;">Lực lượng thực hiện (Tổ TTKS)</th>
+        <th style="width: 200px;">Tuyến đường / Địa bàn</th>
+        <th>Diễn biến & Kết quả kiểm tra, xử lý vi phạm</th>
+        <th style="width: 120px;">Bàn giao ca</th>
+        <th style="width: 75px;">Ký nhận</th>
       </tr>
     </thead>
     <tbody>
@@ -1149,9 +1125,9 @@ export default function PatrolSchedules({
                             <span>{sched.startTime} - {sched.endTime}{isOvernight ? ' (xuyên ngày)' : ''}</span>
                           </div>
                         </td>
-                        <td className="py-4 px-4 max-w-[280px]">
+                        <td className="py-4 px-4 max-w-[320px]">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`font-semibold ${isCustom ? 'text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px]' : 'text-slate-700'}`}>
+                            <span className={`font-bold ${isCustom ? 'text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px]' : 'text-slate-800'}`}>
                               {displayTeamName}
                             </span>
                             {sched.routeType && (
@@ -1160,28 +1136,19 @@ export default function PatrolSchedules({
                               </span>
                             )}
                             {sched.topic && (
-                              <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium truncate max-w-[140px]" title={sched.topic}>
+                              <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium truncate max-w-[160px]" title={sched.topic}>
                                 {sched.topic}
                               </span>
                             )}
                           </div>
-                          {sched.vehicle && (
-                            <p className="text-[10px] text-blue-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <span>🚔</span> <span>{sched.vehicle}</span>
+                          {sched.route && (
+                            <p className="text-[10.5px] text-slate-600 font-medium mt-0.5 truncate" title={sched.route}>
+                              📍 {sched.route}{sched.area ? ` (${sched.area})` : ''}
                             </p>
                           )}
                           <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2" title={memberNamesList}>
                             <span className="font-semibold text-slate-500">Quân số ({countMembers}):</span> {memberNamesList || 'Chưa phân công'}
                           </p>
-                          {sched.equipment && sched.equipment.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {sched.equipment.map((eq, i) => (
-                                <span key={i} className="text-[8.5px] bg-slate-50 border border-slate-200 text-slate-600 px-1 rounded">
-                                  {eq}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex flex-col items-center gap-1 text-[10px]">
@@ -1339,116 +1306,139 @@ export default function PatrolSchedules({
                   </>
                 ) : null}
 
-                {/* PHƯƠNG THỨC PHÂN CÔNG */}
-                <div className="col-span-2 bg-slate-50/50 p-3.5 rounded-xl border border-slate-200/80 space-y-3">
-                  <span className="block text-xs font-bold text-slate-700">Lực lượng làm nhiệm vụ *</span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAssignmentMode('team')}
-                      className={`flex-1 py-1.5 px-2.5 text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        assignmentMode === 'team'
-                          ? 'bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-100/50'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Shield className="w-3.5 h-3.5 text-blue-600" />
-                      Chọn Tổ tuần tra sẵn có
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAssignmentMode('individual')}
-                      className={`flex-1 py-1.5 px-2.5 text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        assignmentMode === 'individual'
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-300 ring-2 ring-indigo-100/50'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                      Tự chọn Cán bộ chiến sĩ lẻ
-                    </button>
-                  </div>
-
-                  {assignmentMode === 'team' ? (
-                    <div className="pt-1">
-                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Tổ tuần tra phụ trách *</label>
-                      <select
-                        required={assignmentMode === 'team'}
-                        value={teamId}
-                        onChange={(e) => setTeamId(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-blue-500 rounded-md text-xs outline-hidden"
-                      >
-                        <option value="" disabled>--- Chọn tổ tuần tra ---</option>
-                        {teams.map(t => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))}
-                      </select>
+                {/* LỰC LƯỢNG LÀM NHIỆM VỤ - TỔ TUẦN TRA & QUÂN SỐ CA TRỰC */}
+                <div className="col-span-2 bg-slate-50/60 p-4 rounded-xl border border-slate-250/80 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="block text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-blue-600" />
+                        <span>Tổ tuần tra & Quân số thực hiện ca trực *</span>
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Tổ trưởng có quyền trực tiếp <strong>Bớt CBCS nghỉ/bận</strong> hoặc <strong>Thêm CBCS tăng cường từ Đội</strong>
+                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-2 pt-1 border-t border-slate-200/50">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[10px] font-bold text-slate-500">
-                          Chọn Cán bộ chiến sĩ ({selectedOfficerIds.length} đã chọn)
-                        </label>
+
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-lg border border-blue-200">
+                        Quân số ca: {selectedOfficerIds.length} cán bộ
+                      </span>
+                      {selectedTeam && (
                         <button
                           type="button"
-                          onClick={() => setSelectedOfficerIds([])}
-                          className="text-[9px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                          onClick={handleResetTeamRoster}
+                          className="px-2 py-1 text-[10.5px] font-bold text-slate-600 hover:text-blue-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                          title="Khôi phục danh sách thành viên gốc của Tổ"
                         >
-                          Bỏ chọn tất cả
+                          ↺ Quân số gốc
                         </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 1. Chọn Tổ tuần tra */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Đơn vị / Tổ tuần tra phụ trách *</label>
+                    <select
+                      required
+                      value={teamId}
+                      onChange={(e) => handleTeamChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-hidden shadow-2xs"
+                    >
+                      <option value="" disabled>--- Chọn tổ tuần tra ---</option>
+                      {teams.filter(t => canViewAll || allowedTeamIds.includes(t.id)).map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.memberIds.length} CBCS)</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 2. Danh sách CBCS đang trong ca trực (có nút Bớt) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-slate-600">
+                      Danh sách CBCS phân công trong ca trực ({selectedOfficerIds.length}):
+                    </label>
+                    {selectedOfficerIds.length === 0 ? (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium text-center">
+                        ⚠️ Chưa có cán bộ nào trong ca trực. Vui lòng thêm CBCS từ Đội bên dưới!
                       </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {selectedOfficerIds.map(offId => {
+                          const off = officers.find(o => o.id === offId);
+                          if (!off) return null;
+                          const isLeader = selectedTeam?.leaderId === offId;
+                          const isOriginMember = selectedTeam?.memberIds.includes(offId);
 
-                      <input
-                        type="text"
-                        placeholder="Tìm kiếm danh bạ theo tên hoặc quân hàm..."
-                        value={searchVal}
-                        onChange={(e) => setSearchVal(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 focus:border-indigo-400 rounded text-[11px] outline-hidden"
-                      />
-
-                      <div className="max-h-[140px] overflow-y-auto border border-slate-200 rounded-md bg-white divide-y divide-slate-100 p-1">
-                        {fixedPersonnelOfficers.filter(o => {
-                          if (o.status !== 'Đang công tác') return false;
-                          if (!searchVal) return true;
-                          const query = searchVal.toLowerCase();
-                          return o.fullName.toLowerCase().includes(query) || o.badgeNumber.toLowerCase().includes(query) || o.rank.toLowerCase().includes(query) || o.department.toLowerCase().includes(query);
-                        }).length === 0 ? (
-                          <div className="text-[10px] text-slate-400 text-center py-4">Không tìm thấy cán bộ phù hợp</div>
-                        ) : (
-                          fixedPersonnelOfficers.filter(o => {
-                            if (o.status !== 'Đang công tác') return false;
-                            if (!searchVal) return true;
-                            const query = searchVal.toLowerCase();
-                            return o.fullName.toLowerCase().includes(query) || o.badgeNumber.toLowerCase().includes(query) || o.rank.toLowerCase().includes(query) || o.department.toLowerCase().includes(query);
-                          }).map(o => {
-                            const isChecked = selectedOfficerIds.includes(o.id);
-                            return (
-                              <label key={o.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 cursor-pointer rounded transition-colors text-[11px]">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    if (isChecked) {
-                                      setSelectedOfficerIds(selectedOfficerIds.filter(id => id !== o.id));
-                                    } else {
-                                      setSelectedOfficerIds([...selectedOfficerIds, o.id]);
-                                    }
-                                  }}
-                                  className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-slate-300 animate-none shrink-0"
-                                />
-                                <div className="flex-1 flex justify-between items-center pr-1.5 min-w-0">
-                                  <span className="font-semibold text-slate-700 truncate">
-                                    {o.rank} {o.fullName}
-                                  </span>
-                                  <span className="text-[9px] text-slate-400 font-medium shrink-0 ml-1">
-                                    [SH: {o.badgeNumber}] • {o.position}
-                                  </span>
+                          return (
+                            <div
+                              key={offId}
+                              className={`flex items-center justify-between px-3 py-2 bg-white border rounded-xl shadow-2xs text-xs transition-colors ${
+                                isLeader 
+                                  ? 'border-blue-300 bg-blue-50/30' 
+                                  : isOriginMember 
+                                    ? 'border-slate-200' 
+                                    : 'border-purple-300 bg-purple-50/20'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <div className="truncate">
+                                  <div className="font-bold text-slate-800 truncate flex items-center gap-1.5">
+                                    <span>{off.rank} {off.fullName}</span>
+                                    {isLeader && (
+                                      <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 text-[9.5px] font-extrabold rounded">
+                                        ⭐ Tổ trưởng
+                                      </span>
+                                    )}
+                                    {!isOriginMember && (
+                                      <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 text-[9.5px] font-extrabold rounded">
+                                        ➕ Tăng cường
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    SH: {off.badgeNumber} • {off.position}
+                                  </div>
                                 </div>
-                              </label>
-                            );
-                          })
-                        )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOfficerFromShift(offId)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
+                                title={`Bớt ${off.fullName} ra khỏi ca trực này`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Thêm CBCS từ Đội vào ca */}
+                  {availableOfficersToAdd.length > 0 && (
+                    <div className="pt-2 border-t border-slate-200/70">
+                      <label className="block text-[11px] font-semibold text-indigo-900 mb-1">
+                        ➕ Thêm CBCS khác trong Đội vào ca trực này:
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleAddOfficerToShift(e.target.value);
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 bg-white border border-indigo-200 focus:border-indigo-500 rounded-xl text-xs font-semibold text-slate-700 outline-hidden"
+                        >
+                          <option value="">-- Chọn CBCS trong Đội để thêm vào ca --</option>
+                          {availableOfficersToAdd.map(o => (
+                            <option key={o.id} value={o.id}>
+                              + {o.rank} {o.fullName} [SH: {o.badgeNumber} - {o.position}]
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   )}
@@ -1512,67 +1502,6 @@ export default function PatrolSchedules({
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
-                </div>
-
-                {/* PHƯƠNG TIỆN TTKS */}
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Phương tiện TTKS</label>
-                  <input
-                    type="text"
-                    list="vehiclesList"
-                    value={vehicle}
-                    onChange={(e) => setVehicle(e.target.value)}
-                    placeholder="Chọn hoặc nhập phương tiện..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 focus:border-blue-500 rounded-lg text-xs outline-hidden"
-                  />
-                  <datalist id="vehiclesList">
-                    {activeVehicles.map((v, i) => (
-                      <option key={i} value={v} />
-                    ))}
-                  </datalist>
-                </div>
-
-                {/* TRANG THIẾT BỊ KỸ THUẬT NGHIỆP VỤ */}
-                <div className="col-span-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Trang thiết bị kỹ thuật nghiệp vụ mang theo ca trực ({equipment.length} đã chọn):
-                    </label>
-                    {equipment.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setEquipment([])}
-                        className="text-[10px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
-                      >
-                        Bỏ chọn hết
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {activeEquipments.map((eq, i) => {
-                      const isSelected = equipment.includes(eq);
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setEquipment(equipment.filter(item => item !== eq));
-                            } else {
-                              setEquipment([...equipment, eq]);
-                            }
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-semibold border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {isSelected ? '✓ ' : '+ '}{eq}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 {!editingSchedule && (
@@ -1861,7 +1790,7 @@ export default function PatrolSchedules({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold tracking-wide uppercase">Kế hoạch phân công ca trực tuần tra, kiểm soát</h3>
-                  <p className="text-[11px] text-indigo-200">Kèm đầy đủ Phương tiện (BKS), Trang thiết bị kỹ thuật (Số Seri) theo Thông tư 32/2023/TT-BCA</p>
+                  <p className="text-[11px] text-indigo-200">Phân công nhiệm vụ, tuyến đường, địa bàn và CBCS thực hiện theo Thông tư 32/2023/TT-BCA</p>
                 </div>
               </div>
 
@@ -1958,17 +1887,15 @@ export default function PatrolSchedules({
                       <tr className="bg-slate-100 text-center font-bold text-slate-800 border-b border-slate-400">
                         <th className="p-2 border border-slate-400 w-10">STT</th>
                         <th className="p-2 border border-slate-400 w-28">Ngày & Ca trực</th>
-                        <th className="p-2 border border-slate-400">Tuyến đường / Địa bàn</th>
-                        <th className="p-2 border border-slate-400">Lực lượng thực hiện</th>
-                        <th className="p-2 border border-slate-400">Phương tiện TTKS</th>
-                        <th className="p-2 border border-slate-400">Trang thiết bị kỹ thuật & CCHT</th>
-                        <th className="p-2 border border-slate-400 w-32">Chuyên đề / Nhiệm vụ</th>
+                        <th className="p-2 border border-slate-400">Tuyến đường / Địa bàn phụ trách</th>
+                        <th className="p-2 border border-slate-400">Lực lượng thực hiện (Tổ trưởng & CBCS)</th>
+                        <th className="p-2 border border-slate-400 w-44">Nội dung / Chuyên đề</th>
                       </tr>
                     </thead>
                     <tbody>
                       {monthPlanSchedules.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400 italic font-sans">
+                          <td colSpan={5} className="p-8 text-center text-slate-400 italic font-sans">
                             Chưa có ca tuần tra nào được lập trong tháng {calMonthStr}/{calYear}.
                           </td>
                         </tr>
@@ -1991,23 +1918,6 @@ export default function PatrolSchedules({
                                   <div className="text-[11px] text-slate-600 mt-0.5">{roster.memberNames}</div>
                                 )}
                               </td>
-                              <td className="p-2 border border-slate-300 font-medium text-slate-800">
-                                {s.vehicle || 'Xe Ô tô TTKS'}
-                              </td>
-                              <td className="p-2 border border-slate-300 text-[11px] text-slate-700">
-                                {s.equipment && s.equipment.length > 0 ? (
-                                  <div className="space-y-0.5">
-                                    {s.equipment.map((eq, i) => (
-                                      <div key={i} className="flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                                        <span>{eq}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="italic text-slate-400">Bộ đàm, gậy chỉ huy, CCHT</span>
-                                )}
-                              </td>
                               <td className="p-2 border border-slate-300 text-[11px] font-semibold text-slate-800">
                                 {s.topic || s.missionType || 'TTKS đảm bảo TTATGT'}
                               </td>
@@ -2023,8 +1933,8 @@ export default function PatrolSchedules({
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs font-sans text-slate-700 space-y-1">
                   <div className="font-bold text-slate-900 uppercase">* Yêu cầu và Quy định chấp hành:</div>
                   <div>1. CBCS trong ca trực chấp hành nghiêm Thông tư số 32/2023/TT-BCA và quy trình nghiệp vụ TTKS CAND.</div>
-                  <div>2. Kiểm tra an toàn kỹ thuật phương tiện, trang thiết bị nghiệp vụ (đặc biệt số Seri máy đo cồn, súng bắn tốc độ) trước khi thực hiện nhiệm vụ.</div>
-                  <div>3. Sau ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và bàn giao phương tiện, trang thiết bị cho chỉ huy đơn vị.</div>
+                  <div>2. Nắm vững địa bàn, tuyến đường phân công; chủ động xử lý nghiêm các hành vi vi phạm trật tự ATGT.</div>
+                  <div>3. Sau ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và báo cáo chỉ huy theo quy định.</div>
                 </div>
 
                 {/* Signature Block */}
@@ -2066,7 +1976,7 @@ export default function PatrolSchedules({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold tracking-wide uppercase">Sổ nhật ký tuần tra, kiểm soát (Nhật ký TTKS)</h3>
-                  <p className="text-[11px] text-emerald-200">Ghi nhận diễn biến, kết quả kiểm tra xử lý, phương tiện & bàn giao thiết bị</p>
+                  <p className="text-[11px] text-emerald-200">Ghi nhận diễn biến, kết quả kiểm tra xử lý và tình hình TTATGT ca trực</p>
                 </div>
               </div>
 
@@ -2080,7 +1990,7 @@ export default function PatrolSchedules({
                   <option value="all">📖 Bảng Sổ Tổng Hợp Cả Tháng ({monthPlanSchedules.length} ca)</option>
                   {monthPlanSchedules.map((s) => (
                     <option key={s.id} value={s.id}>
-                      Ca {formatDateDmy(s.date)} ({s.startTime}-{s.endTime}) - {s.vehicle || 'TTKS'}
+                      Ca {formatDateDmy(s.date)} ({s.startTime}-{s.endTime}) - {s.topic || 'TTKS'}
                     </option>
                   ))}
                 </select>
@@ -2181,19 +2091,17 @@ export default function PatrolSchedules({
                         <tr className="bg-slate-100 text-center font-bold text-slate-800 border-b border-slate-400">
                           <th className="p-2 border border-slate-400 w-10">STT</th>
                           <th className="p-2 border border-slate-400 w-28">Ngày & Ca trực</th>
-                          <th className="p-2 border border-slate-400">Tổ TTKS</th>
-                          <th className="p-2 border border-slate-400">Tuyến đường</th>
-                          <th className="p-2 border border-slate-400">Phương tiện (BKS)</th>
-                          <th className="p-2 border border-slate-400">Thiết bị mang theo (Seri)</th>
-                          <th className="p-2 border border-slate-400">Diễn biến & Kết quả</th>
-                          <th className="p-2 border border-slate-400 w-20">Bàn giao</th>
+                          <th className="p-2 border border-slate-400">Lực lượng thực hiện (Tổ TTKS)</th>
+                          <th className="p-2 border border-slate-400">Tuyến đường / Địa bàn</th>
+                          <th className="p-2 border border-slate-400">Diễn biến & Kết quả kiểm tra, xử lý</th>
+                          <th className="p-2 border border-slate-400 w-24">Bàn giao ca</th>
                           <th className="p-2 border border-slate-400 w-16">Ký nhận</th>
                         </tr>
                       </thead>
                       <tbody>
                         {monthPlanSchedules.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="p-8 text-center text-slate-400 italic font-sans">
+                            <td colSpan={7} className="p-8 text-center text-slate-400 italic font-sans">
                               Chưa có ca tuần tra nào được ghi nhận trong tháng {calMonthStr}/{calYear}.
                             </td>
                           </tr>
@@ -2214,14 +2122,8 @@ export default function PatrolSchedules({
                                 <td className="p-2 border border-slate-300 font-medium text-slate-800">
                                   {s.route || s.area || 'Tuyến phụ trách'}
                                 </td>
-                                <td className="p-2 border border-slate-300 font-medium text-slate-800">
-                                  {s.vehicle || 'Xe TTKS'}
-                                </td>
                                 <td className="p-2 border border-slate-300 text-[10.5px] text-slate-700">
-                                  {s.equipment && s.equipment.length > 0 ? s.equipment.join('; ') : 'Máy cồn, súng tốc độ, CCHT'}
-                                </td>
-                                <td className="p-2 border border-slate-300 text-[10.5px] text-slate-700">
-                                  Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo quy định.
+                                  Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo chuyên đề: {s.topic || s.missionType || 'TTKS'}.
                                 </td>
                                 <td className="p-2 border border-slate-300 text-center text-[10.5px] font-medium text-emerald-800">
                                   Đầy đủ, an toàn
@@ -2257,26 +2159,11 @@ export default function PatrolSchedules({
 
                         {/* Section II */}
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
-                          <div className="font-bold text-slate-900 uppercase">II. LỰC LƯỢNG, PHƯƠNG TIỆN & TRANG THIẾT BỊ MANG THEO:</div>
+                          <div className="font-bold text-slate-900 uppercase">II. LỰC LƯỢNG THỰC HIỆN NHIỆM VỤ:</div>
                           <div className="space-y-1">
                             <div><strong>- Tổ trưởng ca tuần tra:</strong> {roster.leaderName || 'Đang cập nhật'}</div>
                             <div><strong>- Cán bộ chiến sỹ tham gia:</strong> {roster.memberNames || 'Toàn bộ quân số của Tổ'}</div>
-                            <div><strong>- Phương tiện TTKS sử dụng:</strong> {s.vehicle || 'Xe Ô tô TTKS'}</div>
-                            <div>
-                              <strong>- Trang thiết bị kỹ thuật nghiệp vụ & CCHT (kèm Số Seri):</strong>
-                              <div className="mt-1 pl-3 space-y-0.5 text-slate-700">
-                                {s.equipment && s.equipment.length > 0 ? (
-                                  s.equipment.map((eq, i) => (
-                                    <div key={i} className="flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                                      <span>{eq}</span>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div>Máy đo nồng độ cồn, súng bắn tốc độ, bộ đàm cầm tay, gậy chỉ huy, khóa còng số 8.</div>
-                                )}
-                              </div>
-                            </div>
+                            <div><strong>- Tổng quân số ca trực:</strong> {roster.count} cán bộ chiến sỹ</div>
                           </div>
                         </div>
 
@@ -2306,7 +2193,7 @@ export default function PatrolSchedules({
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
                           <div className="font-bold text-slate-900 uppercase">V. ĐÁNH GIÁ & BÀN GIAO CA TRỰC:</div>
                           <div className="text-slate-700">
-                            - Tình trạng phương tiện TTKS và toàn bộ máy móc, trang thiết bị kỹ thuật (kèm số Seri) hoạt động bình thường, an toàn, đã bàn giao nguyên vẹn sau ca trực.
+                            - Ca trực kết thúc an toàn, quân số đảm bảo 100%, tình hình TTATGT trên tuyến phụ trách ổn định.
                           </div>
                         </div>
                       </div>
