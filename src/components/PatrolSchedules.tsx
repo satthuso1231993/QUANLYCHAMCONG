@@ -617,40 +617,40 @@ export default function PatrolSchedules({
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: A4 landscape; margin: 15mm; }
-  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 0.5pt solid #52525b; padding: 5px; }
+  @page { size: A4 landscape; margin: 20mm 20mm 20mm 30mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000000; margin: 0; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-family: 'Times New Roman', serif; }
+  th, td { border: 0.5pt solid #52525b; padding: 6px; }
   .no-border { border: none !important; }
 </style>
 </head>
 <body>
-  <table class="no-border" style="width: 100%; margin-bottom: 15px;">
+  <table class="no-border" style="width: 100%; margin-bottom: 20px;">
     <tr class="no-border">
       <td class="no-border" style="width: 45%; text-align: center; vertical-align: top;">
         <div style="font-size: 11pt; text-transform: uppercase;">${unitName}</div>
         <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${departmentName}</div>
-        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
-        <div style="width: 120px; border-bottom: 1pt solid black; margin: 3px auto 0;"></div>
+        <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
+        <div style="width: 130px; border-bottom: 1pt solid black; margin: 4px auto 0;"></div>
       </td>
       <td class="no-border" style="width: 55%; text-align: center; vertical-align: top;">
-        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-        <div style="font-size: 11.5pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
-        <div style="width: 160px; border-bottom: 1pt solid black; margin: 3px auto 6px;"></div>
-        <div style="font-size: 10.5pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
+        <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+        <div style="font-size: 13pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
+        <div style="width: 160px; border-bottom: 1pt solid black; margin: 4px auto 6px;"></div>
+        <div style="font-size: 12pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
       </td>
     </tr>
   </table>
 
-  <div style="text-align: center; margin-bottom: 15px;">
+  <div style="text-align: center; margin-bottom: 18px;">
     <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ TUẦN TRA, KIỂM SOÁT</div>
-    <div style="font-size: 12pt; font-weight: bold; color: #991b1b; margin-top: 3px;">Tháng ${calMonthStr}/${calYear}</div>
+    <div style="font-size: 12pt; font-weight: bold; margin-top: 4px;">Tháng ${calMonthStr}/${calYear}</div>
   </div>
 
   <table>
     <thead>
       <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
-        <th style="width: 35px;">STT</th>
+        <th style="width: 38px;">STT</th>
         <th style="width: 120px;">Ngày & Ca trực</th>
         <th style="width: 220px;">Tuyến đường / Địa bàn phụ trách</th>
         <th style="width: 280px;">Lực lượng thực hiện (Tổ trưởng & CBCS)</th>
@@ -662,31 +662,31 @@ export default function PatrolSchedules({
     </tbody>
   </table>
 
-  <div style="margin-top: 15px; font-size: 10.5pt; line-height: 1.4;">
+  <div style="margin-top: 15px; font-size: 11.5pt; line-height: 1.5;">
     <b>* Yêu cầu công tác:</b><br/>
-    1. Cán bộ chiến sỹ chấp hành nghiêm Thông tư số 32/2023/TT-BCA, quy trình TTKS và Điều lệnh CAND.<br/>
-    2. Nắm vững địa bàn, tuyến đường phân công; chủ động xử lý nghiêm các hành vi vi phạm trật tự ATGT.<br/>
-    3. Kết thúc ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và báo cáo chỉ huy theo quy định.
+    1. Cán bộ chiến sỹ chấp hành nghiêm Thông tư số 32/2023/TT-BCA của Bộ Công an, quy trình TTKS và Điều lệnh CAND.<br/>
+    2. Nắm vững tình hình trật tự ATGT trên địa bàn, tuyến đường phân công; chủ động phát hiện, xử lý nghiêm các hành vi vi phạm.<br/>
+    3. Kết thúc ca trực, Tổ trưởng ghi đầy đủ Sổ Nhật ký TTKS và bàn giao, báo cáo chỉ huy theo đúng quy định.
   </div>
 
   <table class="no-border" style="width: 100%; margin-top: 25px;">
     <tr class="no-border">
-      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold;">
+      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold; vertical-align: top;">
         NGƯỜI LẬP KẾ HOẠCH<br/>
-        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
-        <div style="height: 60px;"></div>
+        <span style="font-weight: normal; font-style: italic; font-size: 10pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 65px;"></div>
         <div>${settings.signerPreparer || currentUser.fullName}</div>
       </td>
-      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold;">
+      <td class="no-border" style="width: 33%; text-align: center; font-weight: bold; vertical-align: top;">
         CHỈ HUY ĐỘI PHÊ DUYỆT<br/>
-        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
-        <div style="height: 60px;"></div>
+        <span style="font-weight: normal; font-style: italic; font-size: 10pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 65px;"></div>
         <div>${settings.signerCommander || ''}</div>
       </td>
-      <td class="no-border" style="width: 34%; text-align: center; font-weight: bold;">
+      <td class="no-border" style="width: 34%; text-align: center; font-weight: bold; vertical-align: top;">
         LÃNH ĐẠO ĐƠN VỊ DUYỆT<br/>
-        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
-        <div style="height: 60px;"></div>
+        <span style="font-weight: normal; font-style: italic; font-size: 10pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 65px;"></div>
         <div>${settings.signerLeader || ''}</div>
       </td>
     </tr>
@@ -717,8 +717,8 @@ export default function PatrolSchedules({
           <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">${formatDateDmy(s.date)}<br/><span style="font-size: 9pt; font-weight: normal;">${s.startTime} - ${s.endTime}</span></td>
           <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;"><b>${roster.leaderName || 'Tổ TTKS'}</b><br/><span style="font-size: 9pt;">${roster.memberNames}</span></td>
           <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px;">${routeText}</td>
-          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px; font-size: 9.5pt;">Tuyến thông suốt, đảm bảo ATGT. Đã lập BB VPHC theo chuyên đề: ${s.topic || s.missionType || 'TTKS'}.</td>
-          <td style="border: 0.5pt solid #52525b; text-align: center; font-size: 9.5pt;">Đầy đủ, an toàn</td>
+          <td style="border: 0.5pt solid #52525b; text-align: left; padding: 5px; font-size: 10pt;">Tuyến thông suốt, đảm bảo ATGT. Đã kiểm soát, xử lý vi phạm theo chuyên đề: ${s.topic || s.missionType || 'TTKS'}.</td>
+          <td style="border: 0.5pt solid #52525b; text-align: center; font-size: 10pt;">Đầy đủ, an toàn</td>
           <td style="border: 0.5pt solid #52525b; text-align: center; font-weight: bold;">Đã ký</td>
         </tr>
       `;
@@ -728,40 +728,40 @@ export default function PatrolSchedules({
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: A4 landscape; margin: 15mm; }
-  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 0.5pt solid #52525b; padding: 5px; }
+  @page { size: A4 landscape; margin: 20mm 20mm 20mm 30mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000000; margin: 0; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-family: 'Times New Roman', serif; }
+  th, td { border: 0.5pt solid #52525b; padding: 6px; }
   .no-border { border: none !important; }
 </style>
 </head>
 <body>
-  <table class="no-border" style="width: 100%; margin-bottom: 15px;">
+  <table class="no-border" style="width: 100%; margin-bottom: 20px;">
     <tr class="no-border">
       <td class="no-border" style="width: 45%; text-align: center; vertical-align: top;">
         <div style="font-size: 11pt; text-transform: uppercase;">${unitName}</div>
         <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${departmentName}</div>
-        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
-        <div style="width: 120px; border-bottom: 1pt solid black; margin: 3px auto 0;"></div>
+        <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">${teamName}</div>
+        <div style="width: 130px; border-bottom: 1pt solid black; margin: 4px auto 0;"></div>
       </td>
       <td class="no-border" style="width: 55%; text-align: center; vertical-align: top;">
-        <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-        <div style="font-size: 11.5pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
-        <div style="width: 160px; border-bottom: 1pt solid black; margin: 3px auto 6px;"></div>
-        <div style="font-size: 10.5pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
+        <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+        <div style="font-size: 13pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
+        <div style="width: 160px; border-bottom: 1pt solid black; margin: 4px auto 6px;"></div>
+        <div style="font-size: 12pt; font-style: italic;">..., ngày ... tháng ${calMonth} năm ${calYear}</div>
       </td>
     </tr>
   </table>
 
-  <div style="text-align: center; margin-bottom: 15px;">
+  <div style="text-align: center; margin-bottom: 18px;">
     <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">SỔ NHẬT KÝ THEO DÕI CÔNG TÁC TUẦN TRA, KIỂM SOÁT</div>
-    <div style="font-size: 12pt; font-weight: bold; color: #166534; margin-top: 3px;">Tháng ${calMonthStr}/${calYear}</div>
+    <div style="font-size: 12pt; font-weight: bold; margin-top: 4px;">Tháng ${calMonthStr}/${calYear}</div>
   </div>
 
   <table>
     <thead>
       <tr style="background-color: #f4f4f5; font-weight: bold; text-align: center;">
-        <th style="width: 35px;">STT</th>
+        <th style="width: 38px;">STT</th>
         <th style="width: 120px;">Ngày & Khung giờ</th>
         <th style="width: 250px;">Lực lượng thực hiện (Tổ TTKS)</th>
         <th style="width: 200px;">Tuyến đường / Địa bàn</th>
@@ -777,16 +777,16 @@ export default function PatrolSchedules({
 
   <table class="no-border" style="width: 100%; margin-top: 25px;">
     <tr class="no-border">
-      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold;">
+      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold; vertical-align: top;">
         TỔ TRƯỞNG CA TUẦN TRA<br/>
-        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
-        <div style="height: 60px;"></div>
+        <span style="font-weight: normal; font-style: italic; font-size: 10pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 65px;"></div>
         <div>(Ký và bàn giao sau ca)</div>
       </td>
-      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold;">
+      <td class="no-border" style="width: 50%; text-align: center; font-weight: bold; vertical-align: top;">
         CHỈ HUY TIẾP NHẬN BÀN GIAO<br/>
-        <span style="font-weight: normal; font-style: italic; font-size: 9pt;">(Ký, ghi rõ họ tên)</span>
-        <div style="height: 60px;"></div>
+        <span style="font-weight: normal; font-style: italic; font-size: 10pt;">(Ký, ghi rõ họ tên)</span>
+        <div style="height: 65px;"></div>
         <div>${settings.signerCommander || ''}</div>
       </td>
     </tr>
